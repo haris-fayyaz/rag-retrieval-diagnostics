@@ -1,7 +1,7 @@
 from typing import List
 from app.models import Chunk
 
-def chunk_text(text: str, document_id: str, document_name: str, chunk_size: int = 500) -> List[Chunk]:
+def chunk_text(text: str, document_id: str, document_name: str, chunk_size: int = 200) -> List[Chunk]:
     """
     Split text into chunks by paragraphs.
     
