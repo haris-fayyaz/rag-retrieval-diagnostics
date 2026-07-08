@@ -1,11 +1,11 @@
 from typing import Dict, List, Optional
-from app.models import DocumentResponse
+from app.models import DocumentResponse, DocData
 
 class DocumentStore:
     """In-memory document storage."""
     
     def __init__(self):
-        self.documents: Dict[str, Dict] = {}
+        self.documents: Dict[str, DocData] = {}
         self.doc_counter = 0
     
     def add_document(self, name: str, text: str) -> DocumentResponse:

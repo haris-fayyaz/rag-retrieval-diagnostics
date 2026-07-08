@@ -29,3 +29,8 @@ class AskResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
+    
+class DocData(BaseModel):
+    name: str
+    text: str
+    chunks: List[Chunk]
