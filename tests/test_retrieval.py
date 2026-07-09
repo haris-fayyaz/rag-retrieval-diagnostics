@@ -1,4 +1,3 @@
-import pytest
 from app.services.retrieval_service import RetrievalService
 from app.models import Chunk
 

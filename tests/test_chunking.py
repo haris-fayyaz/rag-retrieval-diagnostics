@@ -1,4 +1,3 @@
-import pytest
 from app.services.chunking_service import chunk_text
 
 def test_document_split_into_chunks():
