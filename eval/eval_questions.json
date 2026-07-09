@@ -1,0 +1,52 @@
+{
+  "questions": [
+    {
+      "id": 1,
+      "question": "How much annual leave are employees entitled to?",
+      "expected_document": "hr_policy",
+      "category": "single-document"
+    },
+    {
+      "id": 2,
+      "question": "What is the laptop reimbursement limit?",
+      "expected_document": "it_policy",
+      "category": "single-document"
+    },
+    {
+      "id": 3,
+      "question": "How much hotel reimbursement is allowed per night?",
+      "expected_document": "finance_policy",
+      "category": "single-document"
+    },
+    {
+      "id": 4,
+      "question": "What approval is required for accessing company systems?",
+      "expected_document": "it_policy",
+      "category": "single-document"
+    },
+    {
+      "id": 5,
+      "question": "Who needs to approve leave requests and device purchases?",
+      "expected_document": "hr_policy",
+      "category": "multi-document"
+    },
+    {
+      "id": 6,
+      "question": "Tell me about the reimbursement policies.",
+      "expected_document": null,
+      "category": "vague"
+    },
+    {
+      "id": 7,
+      "question": "What is the company policy on cryptocurrency and blockchain investments?",
+      "expected_document": null,
+      "category": "unanswerable"
+    },
+    {
+      "id": 8,
+      "question": "How many days of paid vacation do contractors get?",
+      "expected_document": null,
+      "category": "misleading"
+    }
+  ]
+}

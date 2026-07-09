@@ -1,0 +1,16 @@
+{
+  "documents": [
+    {
+      "name": "hr_policy",
+      "text": "HR Policy Document\n\nEmployee Leave and Time Off Policy\n\nThis policy outlines the framework for employee leave, time off, and work-life balance. All leave requests require manager approval before submission. Employees are entitled to 20 days of annual leave, 10 days of sick leave, and 5 days of personal leave per year.\n\nLeave Approval Process\n\nEmployees must submit leave requests at least 14 days in advance. Manager approval is mandatory for all leave types. Emergency leave requires post-approval within 24 hours. Denied leave requests must include written justification.\n\nSick Leave and Wellness\n\nSick leave does not require advance notice. Medical certificates are required for absences exceeding 2 consecutive days. Employees can carry forward up to 5 unused sick days to the next year.\n\nLeave Reimbursement\n\nUnused leave is not reimbursed upon resignation. However, employees leaving with less than 30 days notice may receive partial leave reimbursement at management discretion."
+    },
+    {
+      "name": "it_policy",
+      "text": "Information Technology (IT) Policy\n\nAccess Control and Security\n\nAll employees require access approval for company systems and data. Access is granted based on role requirements only. IT department approval is required for all access requests. Unauthorized access attempts will result in disciplinary action.\n\nDevice Reimbursement\n\nCompany policy allows reimbursement for approved laptops up to 2000 USD and monitors up to 500 USD. Reimbursement approval must be obtained from IT manager before purchase. Personal device reimbursement requires additional policy approval.\n\nPassword and Data Security\n\nAll passwords must be changed every 90 days. Multi-factor authentication approval is mandatory for remote access. Data access is restricted to authorized personnel only. Backup approval is required for third-party storage access.\n\nNetwork Access Policy\n\nVPN access approval is required for remote work. Employees must use company-issued devices for access to company networks. Unauthorized network access is prohibited and subject to investigation."
+    },
+    {
+      "name": "finance_policy",
+      "text": "Finance and Expense Reimbursement Policy\n\nTravel Expense Reimbursement\n\nTravel expenses require prior approval from finance department. Hotel reimbursement covers up to 150 USD per night. Flight reimbursement is limited to economy class. All travel expenses must include receipts for approval.\n\nExpense Approval Workflow\n\nAll expense submissions require manager approval first. Finance approval is required for expenses exceeding 1000 USD. CEO approval is required for expenses exceeding 5000 USD. Reimbursement processing takes 10 business days after approval.\n\nMeal and Entertainment Expenses\n\nClient entertainment expenses require approval and business justification. Team meal reimbursement is limited to 25 USD per person. Personal meal expenses are not reimbursed.\n\nGeneral Expense Guidelines\n\nAll expenses require itemized receipts. Expense reimbursement is processed monthly. Policy violations result in denial of reimbursement. Employees must submit expenses within 30 days of incurrence for approval."
+    }
+  ]
+}
