@@ -1,5 +1,4 @@
 import json
-from pathlib import Path
 from app.services.document_store import DocumentStore
 from app.services.chunking_service import chunk_text
 from app.services.retrieval_service import RetrievalService
@@ -68,9 +67,9 @@ def evaluate_retrieval():
         })
     
     # Print results table
-    print("=" * 100)
+    print("-" * 100)
     print(f"{'Question':<40} {'Expected':<15} {'Top Result':<15} {'Pass':<10}")
-    print("=" * 100)
+    print("-" * 100)
     
     for r in results:
         passed_str = "✓" if r["passed"] else "✗"
@@ -82,8 +81,8 @@ def evaluate_retrieval():
     failed = total - passed
     accuracy = (passed / total * 100) if total > 0 else 0
     
-    print("=" * 100)
-    print(f"\nSummary:")
+    print("-" * 100)
+    print("\nSummary:")
     print(f"  Total questions: {total}")
     print(f"  Passed: {passed}")
     print(f"  Failed: {failed}")
