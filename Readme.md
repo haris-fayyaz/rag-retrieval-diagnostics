@@ -15,6 +15,8 @@ A lightweight backend for document chunking and semantic retrieval using TF-IDF.
 
 Create and activate a virtual environment:
 
+Requires Python 3.14+
+
 ```bash
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
@@ -37,6 +39,20 @@ uvicorn app.main:app --reload
 Once the server is running, open the Swagger UI:
 
 `http://localhost:8000/docs`
+
+
+## Python Version
+
+- This project requires **Python 3.14** for dependency compatibility.
+- CI pipeline tests on Python 3.14 via GitHub Actions.
+
+## CI/CD
+
+Automated checks run on every push to `develop` and pull request to `main`:
+- Lint: `ruff check .`
+- Tests: `pytest`
+
+See workflow: `.github/workflows/ci.yml`
 
 ## API Endpoints
 
@@ -106,6 +122,16 @@ Run the test suite with:
 ```bash
 pytest tests/ -v
 ```
+
+## Evaluation
+
+Run retrieval evaluation on sample questions:
+
+```bash
+python scripts/evaluate_retrieval.py
+```
+
+This loads 3 sample documents (HR, IT, Finance policies), runs 8 test questions, and measures retrieval accuracy. Tracks whether the retrieval system returns the expected document for each question.
 
 ## Current Limitations
 
