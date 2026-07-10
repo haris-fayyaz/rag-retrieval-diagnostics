@@ -21,11 +21,13 @@ class AskRequest(BaseModel):
     question: str
     top_k: int = 3
     document_ids: Optional[List[str]] = None
+    min_score: float = 0.0
 
 class AskResponse(BaseModel):
     question: str
     top_k: int
     retrieved_chunks: List[Chunk]
+    message: Optional[str] = None
 
 class HealthResponse(BaseModel):
     status: str
