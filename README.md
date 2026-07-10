@@ -103,7 +103,7 @@ Total questions:  8
 Passed:           4
 Failed:           4
 Accuracy:         50.0%
-========================================
+
 ```
 
 ## Project Structure
