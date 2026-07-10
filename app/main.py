@@ -75,10 +75,18 @@ def ask(request: AskRequest):
     # Retrieve top-k
     retrieved = retrieval_service.retrieve(request.question, all_chunks, request.top_k)
     
+    # Filter by min_score
+    filtered = [chunk for chunk in retrieved if chunk.score >= request.min_score]
+    
+    message = None
+    if not filtered:
+        message = "No relevant chunks found above confidence threshold." 
+    
     return AskResponse(
         question=request.question,
         top_k=request.top_k,
-        retrieved_chunks=retrieved
+        retrieved_chunks=retrieved,
+        message=message
     )
 
 if __name__ == "__main__":
