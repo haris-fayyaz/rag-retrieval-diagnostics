@@ -3,42 +3,42 @@
     {
       "id": 1,
       "question": "What is the laptop reimbursement limit?",
-      "expected_document": ["it_policy"]
+      "expected_documents": ["it_policy"]
     },
     {
       "id": 2,
       "question": "How many days of sick leave do employees get?",
-      "expected_document": ["hr_policy"]
+      "expected_documents": ["hr_policy"]
     },
     {
       "id": 3,
       "question": "What is the daily limit for meal expenses?",
-      "expected_document": ["finance_policy"]
+      "expected_documents": ["finance_policy"]
     },
     {
       "id": 4,
       "question": "Which documents cover reimbursement policies?",
-      "expected_document": []
+      "expected_documents": []
     },
     {
       "id": 5,
       "question": "Tell me about company policies",
-      "expected_document": []
+      "expected_documents": []
     },
     {
       "id": 6,
       "question": "What is the cryptocurrency vendor payment policy?",
-      "expected_document": []
+      "expected_documents": []
     },
     {
       "id": 7,
       "question": "How much vacation do I get in bitcoin?",
-      "expected_document": []
+      "expected_documents": []
     },
     {
       "id": 8,
       "question": "What approval is needed for access to servers?",
-      "expected_document": ["it_policy"]
+      "expected_documents": ["it_policy"]
     }
   ]
 }
