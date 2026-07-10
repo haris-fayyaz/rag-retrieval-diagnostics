@@ -8,7 +8,7 @@ def load_json(filepath):
     with open(filepath, 'r') as f:
         return json.load(f)
 
-def evaluate_retrieval():
+def evaluate_retrieval(min_score=0.0):
     """Run retrieval evaluation on test questions."""
     
     # Load data
@@ -45,6 +45,9 @@ def evaluate_retrieval():
         
         # Retrieve
         retrieved = retrieval_service.retrieve(question, all_chunks, top_k=1)
+        
+        # Filter by threshold
+        retrieved = [chunk for chunk in retrieved if chunk.score >= min_score]
         
         # Determine result
         if not retrieved:
