@@ -46,17 +46,17 @@ def evaluate_retrieval():
         # Retrieve
         retrieved = retrieval_service.retrieve(question, all_chunks, top_k=1)
         
-        # Determine result
+       # Determine result
         if not retrieved:
             top_result = None
-            passed = expected_doc_id is None
         else:
             top_chunk = retrieved[0]
             top_result = next(
                 (k for k, v in doc_id_map.items() if v == top_chunk.document_id),
                 None
             )
-            passed = top_result == expected_doc_id
+
+        passed = top_result in expected_docs if expected_docs else (not retrieved)
         
         results.append({
             "id": q["id"],
