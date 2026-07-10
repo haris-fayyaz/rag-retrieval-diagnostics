@@ -36,7 +36,7 @@ def evaluate_retrieval():
     results = []
     for q in questions_data["questions"]:
         question = q["question"]
-        expected_doc_id = q["expected_document"]
+        expected_docs = q["expected_documents"]
         
         # Get all chunks
         all_chunks = []
@@ -46,22 +46,22 @@ def evaluate_retrieval():
         # Retrieve
         retrieved = retrieval_service.retrieve(question, all_chunks, top_k=1)
         
-       # Determine result
+        # Determine result
         if not retrieved:
             top_result = None
+            passed = len(expected_docs) == 0
         else:
             top_chunk = retrieved[0]
             top_result = next(
                 (k for k, v in doc_id_map.items() if v == top_chunk.document_id),
                 None
             )
-
-        passed = top_result in expected_docs if expected_docs else (not retrieved)
+            passed = top_result in expected_docs if expected_docs else (not retrieved)
         
         results.append({
             "id": q["id"],
             "question": question,
-            "expected": expected_doc_id,
+            "expected": expected_docs,
             "top_result": top_result,
             "passed": passed
         })
