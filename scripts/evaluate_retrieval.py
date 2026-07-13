@@ -2,13 +2,15 @@ import json
 from app.services.document_store import DocumentStore
 from app.services.chunking_service import chunk_text
 from app.services.retrieval_service import RetrievalService
+from app.services.semantic_retrieval_service import SemanticRetrievalService
+
 
 def load_json(filepath):
     """Load JSON file."""
     with open(filepath, 'r') as f:
         return json.load(f)
 
-def evaluate_retrieval(min_score=0.0):
+def evaluate_retrieval(min_score=0.0, mode="tfidf"):
     """Run retrieval evaluation on test questions."""
     
     # Load data
@@ -17,7 +19,12 @@ def evaluate_retrieval(min_score=0.0):
     
     # Initialize services
     doc_store = DocumentStore()
-    retrieval_service = RetrievalService()
+    
+    # Select the retrival mode
+    if mode == "semantic":
+        retrieval_service = SemanticRetrievalService()
+    else:
+        retrieval_service = RetrievalService()
     
     # Add documents to store
     print("Loading documents...")
@@ -92,4 +99,17 @@ def evaluate_retrieval(min_score=0.0):
     print(f"  Accuracy: {accuracy:.1f}%")
 
 if __name__ == "__main__":
-    evaluate_retrieval()
+    
+    # add CLI support
+    import sys
+    mode = "tfidf"
+    min_score = 0.0
+    
+    if "--mode" in sys.argv:
+        mode = sys.argv[sys.argv.index("--mode") + 1]
+    if "--min-score" in sys.argv:
+        min_score = float(sys.argv[sys.argv.index("--min-score") + 1])
+    
+    # evaluate_retrieval()
+    evaluate_retrieval(min_score=min_score, mode=mode)
+    
