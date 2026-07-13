@@ -1,9 +1,7 @@
 import json
 from app.services.document_store import DocumentStore
 from app.services.chunking_service import chunk_text
-from app.services.retrieval_service import RetrievalService
-from app.services.semantic_retrieval_service import SemanticRetrievalService
-
+from app.services.retrieval import get_retriever
 
 def load_json(filepath):
     """Load JSON file."""
@@ -21,10 +19,8 @@ def evaluate_retrieval(min_score=0.0, mode="tfidf"):
     doc_store = DocumentStore()
     
     # Select the retrival mode
-    if mode == "semantic":
-        retrieval_service = SemanticRetrievalService()
-    else:
-        retrieval_service = RetrievalService()
+    retrieval_service = get_retriever(mode)
+ 
     
     # Add documents to store
     print("Loading documents...")

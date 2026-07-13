@@ -3,16 +3,13 @@ from app.models import DocumentCreate, DocumentResponse, AskRequest, AskResponse
 
 from app.services.document_store import DocumentStore
 from app.services.chunking_service import chunk_text
-from app.services.retrieval_service import RetrievalService
-from app.services.semantic_retrieval_service import SemanticRetrievalService
+from app.services.retrieval import get_retriever
+
 
 app = FastAPI(title="RAG Retrieval Diagnostics")
 
 # Initialize services
 doc_store = DocumentStore()
-
-retrieval_service = RetrievalService()   #tfidf 
-semantic_retrieval_service = SemanticRetrievalService()  #semantic (sentence-transformers)
 
 @app.get("/")
 def main_app():
@@ -60,7 +57,6 @@ def ask(request: AskRequest):
     
     Args:
         request: Question, top_k, and optional document filters
-    
     Returns:
         Top-k ranked chunks with scores
     """
@@ -74,12 +70,11 @@ def ask(request: AskRequest):
     if not all_chunks:
         raise HTTPException(status_code=404, detail="No chunks found")
     
-    # Retrieve top-k
+
     # Choose retrieval mode
-    if request.retrieval_mode == "semantic":
-        retrieved = semantic_retrieval_service.retrieve(request.question, all_chunks, request.top_k)
-    else:
-        retrieved = retrieval_service.retrieve(request.question, all_chunks, request.top_k)
+    retriever = get_retriever(request.retrieval_mode)
+    # Retrieve top-k
+    retrieved = retriever.retrieve(request.question, all_chunks, request.top_k)
     
     # Filter by min_score
     filtered = [chunk for chunk in retrieved if chunk.score >= request.min_score]

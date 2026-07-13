@@ -1,9 +1,10 @@
-from app.services.retrieval_service import RetrievalService
+from app.services.retrieval.tfidf_retrieval_service import TFIDF
+from app.services.retrieval.semantic_retrieval_service import SemanticRetrievalService
 from app.models import Chunk
 
 def test_retrieval_returns_top_k():
     """Test that retrieval returns only top_k chunks."""
-    service = RetrievalService()
+    service = TFIDF()
     chunks = [
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="laptop reimbursement policy"),
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c2", score=0, text_preview="vacation days and leave"),
@@ -14,7 +15,7 @@ def test_retrieval_returns_top_k():
 
 def test_retrieval_ranks_relevant_above_irrelevant():
     """Test that relevant chunks rank higher than irrelevant ones."""
-    service = RetrievalService()
+    service = TFIDF()
     chunks = [
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="laptop reimbursement policy limits"),
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c2", score=0, text_preview="cats and dogs are animals"),
@@ -26,7 +27,7 @@ def test_retrieval_ranks_relevant_above_irrelevant():
     
 def test_relevant_question_returns_chunks_above_threshold():
     """Test that relevant questions return chunks when score >= threshold."""
-    service = RetrievalService()
+    service = TFIDF()
     chunks = [
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="laptop reimbursement policy limit"),
     ]
@@ -38,7 +39,7 @@ def test_relevant_question_returns_chunks_above_threshold():
 
 def test_unanswerable_question_returns_empty_with_threshold():
     """Test that unanswerable questions return empty list with high threshold."""
-    service = RetrievalService()
+    service = TFIDF()
     chunks = [
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="vacation policy"),
     ]
@@ -48,7 +49,7 @@ def test_unanswerable_question_returns_empty_with_threshold():
 
 def test_top_k_respected_after_threshold_filtering():
     """Test that top_k limit is respected after threshold filtering."""
-    service = RetrievalService()
+    service = TFIDF()
     chunks = [
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="laptop reimbursement"),
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c2", score=0, text_preview="laptop reimbursement policy"),
@@ -60,7 +61,6 @@ def test_top_k_respected_after_threshold_filtering():
     
 def test_semantic_retrieval_returns_relevant_chunks():
     """Test semantic retrieval returns relevant chunks."""
-    from app.services.semantic_retrieval_service import SemanticRetrievalService
     service = SemanticRetrievalService()
     chunks = [
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="laptop computer reimbursement policy limit"),
@@ -72,7 +72,7 @@ def test_semantic_retrieval_returns_relevant_chunks():
 
 def test_retrieval_mode_tfidf_still_works():
     """Test that TF-IDF mode still works alongside semantic."""
-    service = RetrievalService()
+    service = TFIDF()
     chunks = [
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="laptop reimbursement"),
     ]
