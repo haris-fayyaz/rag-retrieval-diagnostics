@@ -86,3 +86,28 @@ def test_invalid_retrieval_mode_rejected():
     assert valid.retrieval_mode == "tfidf"
     valid_semantic = AskRequest(question="test", retrieval_mode="semantic")
     assert valid_semantic.retrieval_mode == "semantic"
+    
+    
+def test_top1_accuracy_calculation():
+    """Test Top-1 accuracy metric."""
+    from scripts.evaluate_retrieval import is_top1_match
+    chunks = [Chunk(document_id="doc_0", document_name="test", chunk_id="c1", score=0.5, text_preview="test")]
+    assert is_top1_match(["doc_0"], chunks) == True
+    assert is_top1_match(["doc_1"], chunks) == False
+
+def test_recall_at_k_calculation():
+    """Test Recall@K metric."""
+    from scripts.evaluate_retrieval import calculate_recall_at_k
+    chunks = [
+        Chunk(document_id="doc_0", document_name="test", chunk_id="c1", score=0.5, text_preview="test"),
+        Chunk(document_id="doc_1", document_name="test", chunk_id="c2", score=0.4, text_preview="test"),
+    ]
+    recall = calculate_recall_at_k(["doc_0", "doc_1"], chunks, k=2)
+    assert recall == 1.0
+
+def test_no_answer_accuracy_calculation():
+    """Test No-answer accuracy metric."""
+    from scripts.evaluate_retrieval import is_no_answer_correct
+    assert is_no_answer_correct([], []) == True
+    chunks = [Chunk(document_id="doc_0", document_name="test", chunk_id="c1", score=0.5, text_preview="test")]
+    assert is_no_answer_correct([], chunks) == False

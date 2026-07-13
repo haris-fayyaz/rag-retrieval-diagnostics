@@ -14,10 +14,9 @@ def load_json(filepath):
 def calculate_recall_at_k(expected_docs: List[str], retrieved: List[Chunk], k: int = 3) -> float:
     """Calculate Recall@K: how many expected docs appear in top-k results."""
     if not expected_docs:
-        return 1.0  # No expected docs = perfect recall
+        return 1.0
     
-    retrieved_docs = set(c.document_id.split('_')[1] if '_' in c.document_id else c.document_id 
-                         for c in retrieved[:k])
+    retrieved_docs = set(c.document_id for c in retrieved[:k])  # Use directly
     expected_set = set(expected_docs)
     
     if not expected_set:
@@ -31,7 +30,7 @@ def is_top1_match(expected_docs: List[str], retrieved: List[Chunk]) -> bool:
     if not retrieved or not expected_docs:
         return len(expected_docs) == 0 and not retrieved
     
-    top_doc = retrieved[0].document_id.split('_')[1] if '_' in retrieved[0].document_id else retrieved[0].document_id
+    top_doc = retrieved[0].document_id  # Don't parse, use directly
     return top_doc in expected_docs
 
 def is_no_answer_correct(expected_docs: List[str], retrieved: List[Chunk]) -> bool:
