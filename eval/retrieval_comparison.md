@@ -1,7 +1,6 @@
 # Retrieval Comparison: TF-IDF vs Semantic (Task 12)
 
 ## TF-IDF Results
-
 - **Best Threshold:** 0.10
 - **Overall Accuracy:** 85.7% (12/14)
 - **Top-1 Accuracy:** 75.0% (6/8 answerable)
@@ -11,7 +10,6 @@
 - **Avg Unanswerable Score:** 0.000
 
 ## Semantic Results
-
 - **Best Threshold:** 0.15 or 0.30 (both 50%)
 - **Overall Accuracy:** 50.0% (7/14)
 - **Top-1 Accuracy:** 0-12.5% (poor ranking)
@@ -21,7 +19,6 @@
 - **Avg Unanswerable Score:** 0.427
 
 ## Key Observations
-
 **Where TF-IDF performs better:**
 - Top-1 ranking (75% vs 0-12.5%)
 - No-answer rejection (100% vs 0-16.7%)
@@ -46,13 +43,12 @@
 - **Score distribution mismatch** — Semantic's answerable/unanswerable scores overlap (0.485 vs 0.427), making thresholding impossible
 
 ## Conclusion
-
 **TF-IDF is safer for production right now:**
 - Superior ranking (Top-1: 75% vs 12.5%)
 - Superior rejection behavior (No-answer: 100% vs 16.7%)
 - Clear score separation enables reliable thresholding
 - Simpler and more interpretable
-
+ 
 **Semantic needs improvement for this domain:**
 - Requires fine-tuning on domain-specific documents
 - Needs reranking stage to fix Top-1 accuracy
