@@ -22,6 +22,7 @@ class AskRequest(BaseModel):
     top_k: int = 3
     document_ids: Optional[List[str]] = None
     min_score: float = 0.0
+    retrieval_mode: str = "tfidf"  # "tfidf" or "semantic"
 
 class AskResponse(BaseModel):
     question: str
