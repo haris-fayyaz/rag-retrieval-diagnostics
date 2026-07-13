@@ -39,6 +39,36 @@
       "id": 8,
       "question": "What approval is needed for access to servers?",
       "expected_documents": ["it_policy"]
+    },
+    {
+      "id": 9,
+      "question": "Can the company reimburse me for a work laptop I purchased?",
+      "expected_documents": ["it_policy"]
+    },
+    {
+      "id": 10,
+      "question": "If I buy office equipment, will I get my money back?",
+      "expected_documents": ["finance_policy", "it_policy"]
+    },
+    {
+      "id": 11,
+      "question": "Tell me about reimbursement",
+      "expected_documents": []
+    },
+    {
+      "id": 12,
+      "question": "How does the company handle payment approvals?",
+      "expected_documents": ["finance_policy"]
+    },
+    {
+      "id": 13,
+      "question": "Do I need permission to access internal systems?",
+      "expected_documents": ["it_policy"]
+    },
+    {
+      "id": 14,
+      "question": "How much vacation time do I get for equipment purchases?",
+      "expected_documents": []
     }
   ]
 }
