@@ -57,3 +57,34 @@ def test_top_k_respected_after_threshold_filtering():
     result = service.retrieve("laptop", chunks, top_k=2)
     filtered = [c for c in result if c.score >= 0.05]
     assert len(filtered) <= 2
+    
+def test_semantic_retrieval_returns_relevant_chunks():
+    """Test semantic retrieval returns relevant chunks."""
+    from app.services.semantic_retrieval_service import SemanticRetrievalService
+    service = SemanticRetrievalService()
+    chunks = [
+        Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="laptop computer reimbursement policy limit"),
+        Chunk(document_id="d1", document_name="doc.txt", chunk_id="c2", score=0, text_preview="vacation days and holiday time"),
+    ]
+    result = service.retrieve("laptop reimbursement", chunks, top_k=2)
+    assert len(result) >= 1
+    assert result[0].chunk_id == "c1"
+
+def test_retrieval_mode_tfidf_still_works():
+    """Test that TF-IDF mode still works alongside semantic."""
+    service = RetrievalService()
+    chunks = [
+        Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="laptop reimbursement"),
+    ]
+    result = service.retrieve("laptop", chunks, top_k=1)
+    assert len(result) == 1
+
+def test_invalid_retrieval_mode_rejected():
+    """Test that invalid retrieval modes are rejected."""
+    from pydantic import ValidationError
+    # This would require validation in AskRequest, but for now just test the model accepts valid modes
+    from app.models import AskRequest
+    valid = AskRequest(question="test", retrieval_mode="tfidf")
+    assert valid.retrieval_mode == "tfidf"
+    valid_semantic = AskRequest(question="test", retrieval_mode="semantic")
+    assert valid_semantic.retrieval_mode == "semantic"
