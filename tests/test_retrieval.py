@@ -1,5 +1,6 @@
 from app.services.retrieval.tfidf_retrieval_service import TFIDF
 from app.services.retrieval.semantic_retrieval_service import SemanticRetrievalService
+from app.models import AskRequest
 from app.models import Chunk
 
 def test_retrieval_returns_top_k():
@@ -81,9 +82,6 @@ def test_retrieval_mode_tfidf_still_works():
 
 def test_invalid_retrieval_mode_rejected():
     """Test that invalid retrieval modes are rejected."""
-    from pydantic import ValidationError
-    # This would require validation in AskRequest, but for now just test the model accepts valid modes
-    from app.models import AskRequest
     valid = AskRequest(question="test", retrieval_mode="tfidf")
     assert valid.retrieval_mode == "tfidf"
     valid_semantic = AskRequest(question="test", retrieval_mode="semantic")
