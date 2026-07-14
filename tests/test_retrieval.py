@@ -93,7 +93,7 @@ def test_top1_accuracy_calculation():
     from scripts.evaluate_retrieval import is_top1_match
     chunks = [Chunk(document_id="doc_0", document_name="test", chunk_id="c1", score=0.5, text_preview="test")]
     assert is_top1_match(["doc_0"], chunks)
-    assert is_top1_match(["doc_1"], chunks)
+    assert not is_top1_match(["doc_1"], chunks)
 
 def test_recall_at_k_calculation():
     """Test Recall@K metric."""
@@ -110,4 +110,4 @@ def test_no_answer_accuracy_calculation():
     from scripts.evaluate_retrieval import is_no_answer_correct
     assert is_no_answer_correct([], [])
     chunks = [Chunk(document_id="doc_0", document_name="test", chunk_id="c1", score=0.5, text_preview="test")]
-    assert is_no_answer_correct([], chunks)
+    assert not is_no_answer_correct([], chunks)
