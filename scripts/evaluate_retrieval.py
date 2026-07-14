@@ -155,7 +155,7 @@ def evaluate_retrieval(min_score=0.0, mode="tfidf"):
     avg_answerable = sum(answerable_scores) / len(answerable_scores) if answerable_scores else 0
     avg_unanswerable = sum(unanswerable_scores) / len(unanswerable_scores) if unanswerable_scores else 0
 
-    print(f"\nMetrics:")
+    print("\nMetrics:")
     answerable_count = sum(1 for r in results if r["expected"])
     unanswerable_count = sum(1 for r in results if not r["expected"])
     print(f"  Top-1 Accuracy: {top1_count}/{answerable_count} = {top1_count/answerable_count*100:.1f}%")
