@@ -1,12 +1,12 @@
 from app.services.retrieval.retrieval_interface import Retriever
-from app.services.retrieval.tfidf_retrieval_service import RetrievalService
+from app.services.retrieval.tfidf_retrieval_service import TFIDF
 from app.services.retrieval.semantic_retrieval_service import SemanticRetrievalService
 from app.services.retrieval.hybrid import HybridRetriever
 
 def get_retriever(mode: str) -> Retriever:
     """Get retriever by mode."""
     retrievers = {
-        "tfidf": RetrievalService(),
+        "tfidf": TFIDF(),
         "semantic": SemanticRetrievalService(),
         "hybrid": HybridRetriever()
     }
