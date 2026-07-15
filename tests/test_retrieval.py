@@ -1,6 +1,6 @@
 from app.services.retrieval.tfidf_retrieval_service import TFIDF
 from app.services.retrieval.semantic_retrieval_service import SemanticRetrievalService
-from app.models import AskRequest, Chunk
+from app.models import Chunk
 import pytest
 
 def test_retrieval_returns_top_k():
