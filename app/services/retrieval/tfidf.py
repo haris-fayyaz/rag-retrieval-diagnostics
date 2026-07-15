@@ -2,7 +2,7 @@ from typing import List
 from sklearn.feature_extraction.text import TfidfVectorizer
 from app.models import Chunk
 
-class TFIDF:
+class TFIDFRetriever:
     """Retrieve relevant chunks using TF-IDF scoring."""
     
     def __init__(self):
