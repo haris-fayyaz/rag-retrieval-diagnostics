@@ -90,24 +90,37 @@ def test_invalid_retrieval_mode_rejected():
     
 def test_top1_accuracy_calculation():
     """Test Top-1 accuracy metric."""
-    from scripts.evaluate_retrieval import is_top1_match
+    from app.services.metrics import MetricsCalculator
     chunks = [Chunk(document_id="doc_0", document_name="test", chunk_id="c1", score=0.5, text_preview="test")]
-    assert is_top1_match(["doc_0"], chunks)
-    assert not is_top1_match(["doc_1"], chunks)
+    assert MetricsCalculator.top_1_accuracy(["doc_0"], chunks)
+    assert not MetricsCalculator.top_1_accuracy(["doc_1"], chunks)
 
 def test_recall_at_k_calculation():
     """Test Recall@K metric."""
-    from scripts.evaluate_retrieval import calculate_recall_at_k
+    from app.services.metrics import MetricsCalculator
     chunks = [
         Chunk(document_id="doc_0", document_name="test", chunk_id="c1", score=0.5, text_preview="test"),
         Chunk(document_id="doc_1", document_name="test", chunk_id="c2", score=0.4, text_preview="test"),
     ]
-    recall = calculate_recall_at_k(["doc_0", "doc_1"], chunks, k=2)
+    recall = MetricsCalculator.recall_at_k(["doc_0", "doc_1"], chunks, k=2)
     assert recall == 1.0
 
 def test_no_answer_accuracy_calculation():
     """Test No-answer accuracy metric."""
-    from scripts.evaluate_retrieval import is_no_answer_correct
-    assert is_no_answer_correct([], [])
+    from app.services.metrics import MetricsCalculator
+    assert MetricsCalculator.no_answer_accuracy([], [])
     chunks = [Chunk(document_id="doc_0", document_name="test", chunk_id="c1", score=0.5, text_preview="test")]
-    assert not is_no_answer_correct([], chunks)
+    assert not MetricsCalculator.no_answer_accuracy([], chunks)
+
+def test_score_distribution():
+    """Test score distribution tracking."""
+    from app.services.metrics import ScoreDistribution
+    dist = ScoreDistribution()
+    dist.add_answerable(0.8)
+    dist.add_answerable(0.6)
+    dist.add_unanswerable(0.3)
+    
+    assert dist.avg_answerable() == 0.7
+    assert dist.avg_unanswerable() == 0.3
+    assert dist.max_answerable() == 0.8
+    assert dist.max_unanswerable() == 0.3
