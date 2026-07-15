@@ -1,11 +1,9 @@
-import json
-from typing import List
 from app.services.document_store import DocumentStore
 from app.services.chunking_service import chunk_text
 from app.services.retrieval import get_retriever
 from app.services.metrics import MetricsCalculator, ScoreDistribution
 from app.services.evaluation_result import EvaluationResult
-from app.models import Chunk
+
 
 class RetrieverEvaluator:
     """Evaluation engine for retrieval strategies."""
