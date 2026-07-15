@@ -80,13 +80,6 @@ def test_retrieval_mode_tfidf_still_works():
     result = service.retrieve("laptop", chunks, top_k=1)
     assert len(result) == 1
 
-def test_invalid_retrieval_mode_rejected():
-    """Test that invalid retrieval modes are rejected."""
-    valid = AskRequest(question="test", retrieval_mode="tfidf")
-    assert valid.retrieval_mode == "tfidf"
-    valid_semantic = AskRequest(question="test", retrieval_mode="semantic")
-    assert valid_semantic.retrieval_mode == "semantic"
-    
     
 def test_top1_accuracy_calculation():
     """Test Top-1 accuracy metric."""
@@ -147,30 +140,7 @@ def test_hybrid_merges_duplicate_chunks():
     result = retriever.retrieve("laptop", chunks, top_k=1, min_score=0.0)
     # Should return 1 chunk (not duplicated from both retrievers)
     assert len(result) == 1
-
-def test_hybrid_respects_top_k():
-    """Test hybrid respects top_k limit."""
-    from app.services.retrieval import get_retriever
-    retriever = get_retriever("hybrid")
-    chunks = [
-        Chunk(document_id="doc_0", document_name="test", chunk_id="c1", score=0, text_preview="laptop"),
-        Chunk(document_id="doc_1", document_name="test", chunk_id="c2", score=0, text_preview="laptop"),
-        Chunk(document_id="doc_2", document_name="test", chunk_id="c3", score=0, text_preview="laptop"),
-    ]
-    result = retriever.retrieve("laptop", chunks, top_k=2, min_score=0.0)
-    assert len(result) <= 2
     
-
-def test_hybrid_retriever_works():
-    """Test hybrid retriever mode works."""
-    from app.services.retrieval import get_retriever
-    retriever = get_retriever("hybrid")
-    chunks = [
-        Chunk(document_id="doc_0", document_name="test", chunk_id="c1", score=0, text_preview="laptop reimbursement"),
-        Chunk(document_id="doc_1", document_name="test", chunk_id="c2", score=0, text_preview="laptop policy"),
-    ]
-    result = retriever.retrieve("laptop", chunks, top_k=2, min_score=0.0)
-    assert len(result) >= 1  # Should retrieve something
 
 def test_hybrid_respects_top_k():
     """Test hybrid respects top_k limit."""

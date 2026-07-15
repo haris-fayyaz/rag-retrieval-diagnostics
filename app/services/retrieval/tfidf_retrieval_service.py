@@ -1,7 +1,6 @@
 from typing import List
 from sklearn.feature_extraction.text import TfidfVectorizer
 from app.models import Chunk
-import numpy as np
 
 class TFIDF:
     """Retrieve relevant chunks using TF-IDF scoring."""
