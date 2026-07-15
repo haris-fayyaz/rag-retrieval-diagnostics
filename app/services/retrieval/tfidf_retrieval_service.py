@@ -1,6 +1,7 @@
 from typing import List
 from sklearn.feature_extraction.text import TfidfVectorizer
 from app.models import Chunk
+import numpy as np
 
 class TFIDF:
     """Retrieve relevant chunks using TF-IDF scoring."""
@@ -8,7 +9,7 @@ class TFIDF:
     def __init__(self):
         self.vectorizer = TfidfVectorizer(stop_words="english")
     
-    def retrieve(self, question: str, chunks: List[Chunk], top_k: int = 3) -> List[Chunk]:
+    def retrieve(self, question: str, chunks: List[Chunk], top_k: int = 3, min_score: float = 0.0) -> List[Chunk]:
         """
         Rank chunks by relevance to question using TF-IDF.
         
@@ -39,7 +40,8 @@ class TFIDF:
         
         result = []
         for chunk, score in ranked:
-            chunk.score = float(score)
-            result.append(chunk)
+            if score >= min_score:  # Filter by threshold
+                chunk.score = float(score)
+                result.append(chunk)
         
         return result
