@@ -1,7 +1,7 @@
 from typing import List, Dict
 from app.models import Chunk
 from app.services.retrieval.retrieval_interface import Retriever
-from app.services.retrieval.tfidf_retrieval_service import RetrievalService
+from app.services.retrieval.tfidf_retrieval_service import TFIDF
 from app.services.retrieval.semantic_retrieval_service import SemanticRetrievalService
 
 class HybridRetriever(Retriever):
@@ -13,7 +13,7 @@ class HybridRetriever(Retriever):
             k: RRF constant (default 60, controls rank weight)
         """
         self.k = k
-        self.tfidf_retriever = RetrievalService()
+        self.tfidf_retriever = TFIDF()
         self.semantic_retriever = SemanticRetrievalService()
     
     def retrieve(self, question: str, chunks: List[Chunk], top_k: int = 3, min_score: float = 0.0) -> List[Chunk]:
