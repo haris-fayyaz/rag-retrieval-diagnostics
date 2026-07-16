@@ -30,7 +30,7 @@ class EvaluationResult:
         print(f"\n{'='*80}")
         print(f"Mode: {self.mode} | Threshold: {self.threshold} | Top-K: {self.top_k}")
         print(f"{'='*80}")
-        print(f"Accuracy: {self.accuracy:.1f}% ({self.passed}/{self.total_questions})")
+        print(f"* Accuracy: {self.accuracy:.1f}% ({self.passed}/{self.total_questions})")
         print("\nDetailed Metrics:")
         print(f"  Top-1 Accuracy: {self.top_1_accuracy:.1f}%")
         print(f"  Recall@{self.top_k}: {self.recall_at_k:.1f}%")

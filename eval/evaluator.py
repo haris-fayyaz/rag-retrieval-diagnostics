@@ -49,33 +49,45 @@ class RetrieverEvaluator:
             retrieved = self.retriever.retrieve(question, all_chunks, top_k=self.top_k)
             
             # Filter by threshold
-            retrieved = [chunk for chunk in retrieved if chunk.score >= self.min_score]
+            if self.mode != "hybrid":
+                retrieved = [chunk for chunk in retrieved if chunk.score >= self.min_score]
+            # DEBUG
+            if expected_docs and not retrieved:
+                print(f"Q{q['id']}: No results after threshold filtering")
             
-            # Calculate metrics
+            # Map chunk doc_ids back to original IDs for comparison
+            for chunk in retrieved:
+                # Convert auto-generated ID back to original
+                original_id = next((k for k, v in doc_id_map.items() if v == chunk.document_id), chunk.document_id)
+                chunk.document_id = original_id
+
+            # Calculate metrics with correct document IDs
             top1_accurate = self.metrics.top_1_accuracy(expected_docs, retrieved)
             recall = self.metrics.recall_at_k(expected_docs, retrieved, k=self.top_k)
             no_answer_correct = self.metrics.no_answer_accuracy(expected_docs, retrieved)
-            
-            if top1_accurate:
-                top1_count += 1
-            if recall == 1.0:
-                recall_count += 1
-            if no_answer_correct:
-                no_answer_count += 1
-            
-            # Track scores
-            if expected_docs:
+
+            # Count metrics only for appropriate question type
+            if expected_docs:  # Answerable
+                if top1_accurate:
+                    top1_count += 1
+                if recall == 1.0:
+                    recall_count += 1
                 self.scores.add_answerable(retrieved[0].score if retrieved else 0.0)
-            else:
+            else:  # Unanswerable
+                if no_answer_correct:
+                    no_answer_count += 1
                 self.scores.add_unanswerable(retrieved[0].score if retrieved else 0.0)
             
             results.append({
                 "question": question,
                 "expected": expected_docs,
-                "retrieved": [c.document_id for c in retrieved],
-                "passed": top1_accurate
+                "retrieved": [
+                    next((k for k, v in doc_id_map.items() if v == c.document_id), c.document_id)
+                    for c in retrieved
+                ],
+                "passed": top1_accurate if expected_docs else no_answer_correct
             })
-        
+                    
         # Calculate summary metrics
         total = len(results)
         passed = sum(1 for r in results if r["passed"])
