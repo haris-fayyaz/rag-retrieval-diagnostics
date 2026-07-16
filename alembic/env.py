@@ -14,16 +14,13 @@ config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# add your model's MetaData object here
-# for 'autogenerate' support
-# from myapp import mymodel
-# target_metadata = mymodel.Base.metadata
-target_metadata = None
+from app.database.models import Base
+from app.database.session import get_database_url
 
-# other values from the config, defined by the needs of env.py,
-# can be acquired:
-# my_important_option = config.get_main_option("my_important_option")
-# ... etc.
+target_metadata = Base.metadata
+
+# Allow DATABASE_URL env var (used by tests/CI) to override alembic.ini
+config.set_main_option("sqlalchemy.url", get_database_url())
 
 
 def run_migrations_offline() -> None:
