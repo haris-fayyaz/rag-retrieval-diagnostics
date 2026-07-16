@@ -71,18 +71,14 @@ def ask(request: AskRequest):
         raise HTTPException(status_code=404, detail="No chunks found")
     
 
-    # Choose retrieval mode
+    # Choose retrieval mode and retrieve with threshold
     retriever = get_retriever(request.retrieval_mode)
-    # Retrieve top-k
-    retrieved = retriever.retrieve(request.question, all_chunks, request.top_k)
-    
-    # Filter by min_score
-    filtered = [chunk for chunk in retrieved if chunk.score >= request.min_score]
-    
+    retrieved = retriever.retrieve(request.question, all_chunks, request.top_k, request.min_score)
+
     message = None
-    if not filtered:
-        message = "No relevant chunks found above confidence threshold." 
-    
+    if not retrieved:
+        message = "No relevant chunks found above confidence threshold."
+
     return AskResponse(
         question=request.question,
         top_k=request.top_k,

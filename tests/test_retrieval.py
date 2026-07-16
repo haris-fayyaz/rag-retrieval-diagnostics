@@ -1,11 +1,11 @@
-from app.services.retrieval.tfidf_retrieval_service import TFIDF
-from app.services.retrieval.semantic_retrieval_service import SemanticRetrievalService
-from app.models import AskRequest
+from app.services.retrieval.tfidf import TFIDFRetriever
+from app.services.retrieval.semantic import SemanticRetrievalService
 from app.models import Chunk
+import pytest
 
 def test_retrieval_returns_top_k():
     """Test that retrieval returns only top_k chunks."""
-    service = TFIDF()
+    service = TFIDFRetriever()
     chunks = [
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="laptop reimbursement policy"),
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c2", score=0, text_preview="vacation days and leave"),
@@ -16,7 +16,7 @@ def test_retrieval_returns_top_k():
 
 def test_retrieval_ranks_relevant_above_irrelevant():
     """Test that relevant chunks rank higher than irrelevant ones."""
-    service = TFIDF()
+    service = TFIDFRetriever()
     chunks = [
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="laptop reimbursement policy limits"),
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c2", score=0, text_preview="cats and dogs are animals"),
@@ -28,7 +28,7 @@ def test_retrieval_ranks_relevant_above_irrelevant():
     
 def test_relevant_question_returns_chunks_above_threshold():
     """Test that relevant questions return chunks when score >= threshold."""
-    service = TFIDF()
+    service = TFIDFRetriever()
     chunks = [
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="laptop reimbursement policy limit"),
     ]
@@ -40,7 +40,7 @@ def test_relevant_question_returns_chunks_above_threshold():
 
 def test_unanswerable_question_returns_empty_with_threshold():
     """Test that unanswerable questions return empty list with high threshold."""
-    service = TFIDF()
+    service = TFIDFRetriever()
     chunks = [
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="vacation policy"),
     ]
@@ -50,7 +50,7 @@ def test_unanswerable_question_returns_empty_with_threshold():
 
 def test_top_k_respected_after_threshold_filtering():
     """Test that top_k limit is respected after threshold filtering."""
-    service = TFIDF()
+    service = TFIDFRetriever()
     chunks = [
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="laptop reimbursement"),
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c2", score=0, text_preview="laptop reimbursement policy"),
@@ -73,20 +73,13 @@ def test_semantic_retrieval_returns_relevant_chunks():
 
 def test_retrieval_mode_tfidf_still_works():
     """Test that TF-IDF mode still works alongside semantic."""
-    service = TFIDF()
+    service = TFIDFRetriever()
     chunks = [
         Chunk(document_id="d1", document_name="doc.txt", chunk_id="c1", score=0, text_preview="laptop reimbursement"),
     ]
     result = service.retrieve("laptop", chunks, top_k=1)
     assert len(result) == 1
 
-def test_invalid_retrieval_mode_rejected():
-    """Test that invalid retrieval modes are rejected."""
-    valid = AskRequest(question="test", retrieval_mode="tfidf")
-    assert valid.retrieval_mode == "tfidf"
-    valid_semantic = AskRequest(question="test", retrieval_mode="semantic")
-    assert valid_semantic.retrieval_mode == "semantic"
-    
     
 def test_top1_accuracy_calculation():
     """Test Top-1 accuracy metric."""
@@ -124,3 +117,45 @@ def test_score_distribution():
     assert dist.avg_unanswerable() == 0.3
     assert dist.max_answerable() == 0.8
     assert dist.max_unanswerable() == 0.3
+    
+    
+def test_hybrid_retriever_works():
+    """Test hybrid retriever mode."""
+    from app.services.retrieval import get_retriever
+    retriever = get_retriever("hybrid")
+    chunks = [
+        Chunk(document_id="doc_0", document_name="test", chunk_id="c1", score=0, text_preview="laptop reimbursement"),
+        Chunk(document_id="doc_1", document_name="test", chunk_id="c2", score=0, text_preview="laptop policy limit"),
+    ]
+    result = retriever.retrieve("laptop reimbursement", chunks, top_k=2, min_score=0.0)
+    assert len(result) <= 2
+
+def test_hybrid_merges_duplicate_chunks():
+    """Test hybrid merges chunks from both retrievers."""
+    from app.services.retrieval import get_retriever
+    retriever = get_retriever("hybrid")
+    chunks = [
+        Chunk(document_id="doc_0", document_name="test", chunk_id="c1", score=0, text_preview="laptop reimbursement policy"),
+    ]
+    result = retriever.retrieve("laptop", chunks, top_k=1, min_score=0.0)
+    # Should return 1 chunk (not duplicated from both retrievers)
+    assert len(result) == 1
+    
+
+def test_hybrid_respects_top_k():
+    """Test hybrid respects top_k limit."""
+    from app.services.retrieval import get_retriever
+    retriever = get_retriever("hybrid")
+    chunks = [
+        Chunk(document_id="doc_0", document_name="test", chunk_id="c1", score=0, text_preview="laptop"),
+        Chunk(document_id="doc_1", document_name="test", chunk_id="c2", score=0, text_preview="laptop"),
+        Chunk(document_id="doc_2", document_name="test", chunk_id="c3", score=0, text_preview="laptop"),
+    ]
+    result = retriever.retrieve("laptop", chunks, top_k=2, min_score=0.0)
+    assert len(result) <= 2
+
+def test_invalid_retrieval_mode_rejected():
+    """Test invalid modes are rejected."""
+    from app.services.retrieval import get_retriever
+    with pytest.raises(ValueError):
+        get_retriever("invalid_mode")

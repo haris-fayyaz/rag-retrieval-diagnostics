@@ -31,3 +31,9 @@ jobs:
       - name: Run tests
         run: |
           pytest
+
+      - name: Test evaluation script
+        run: |
+          python -m scripts.evaluate_retrieval --mode tfidf --min-score 0.10 --top-k 3
+          python -m scripts.evaluate_retrieval --mode semantic --min-score 0.15 --top-k 3
+          python -m scripts.evaluate_retrieval --mode hybrid --min-score 0.15 --top-k 3

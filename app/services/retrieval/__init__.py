@@ -1,12 +1,17 @@
-from app.services.retrieval.retrieval_interface import Retriever
-from app.services.retrieval.tfidf_retrieval_service import TFIDF
-from app.services.retrieval.semantic_retrieval_service import SemanticRetrievalService
+from app.services.retrieval.interface import Retriever
+from app.services.retrieval.tfidf import TFIDFRetriever
+from app.services.retrieval.semantic import SemanticRetrievalService
+from app.services.retrieval.hybrid import HybridRetriever
 
 def get_retriever(mode: str) -> Retriever:
+    """Get retriever by mode."""
     retrievers = {
-        "tfidf": TFIDF(),
-        "semantic": SemanticRetrievalService()
+        "tfidf": TFIDFRetriever(),
+        "semantic": SemanticRetrievalService(),
+        "hybrid": HybridRetriever()
     }
+    
     if mode not in retrievers:
-        raise ValueError(f"Unknown mode: {mode}")
+        raise ValueError(f"Unknown retrieval mode: {mode}. Use 'tfidf', 'semantic', or 'hybrid'.")
+    
     return retrievers[mode]
