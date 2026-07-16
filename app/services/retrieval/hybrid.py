@@ -37,8 +37,8 @@ class HybridRetriever(Retriever):
         """
         
         # Get results from both retrievers (retrieve more to account for filtering)
-        tfidf_results = self.tfidf_retriever.retrieve(question, chunks, top_k=top_k*2, min_score=min_score)
-        semantic_results = self.semantic_retriever.retrieve(question, chunks, top_k=top_k*2, min_score=min_score)
+        tfidf_results = self.tfidf_retriever.retrieve(question, chunks, top_k=top_k*2, min_score=0.10)
+        semantic_results = self.semantic_retriever.retrieve(question, chunks, top_k=top_k*2, min_score=0.15)
         
         # If both return nothing, return empty
         if not tfidf_results and not semantic_results:
