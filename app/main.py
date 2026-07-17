@@ -70,6 +70,13 @@ def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_rep
     if not doc.text.strip():
         raise HTTPException(status_code=400, detail="Document text cannot be empty")
 
+    # Single transaction: document row and its chunks are created together,
+    # or not at all. Previously this was two separate commits (add_document,
+    # then save_chunks) - if the second failed, the document would be left
+    # behind with zero chunks. See tests/test_persistence.py for the
+    # regression test covering this.
+    return repo.create_document_with_chunks(doc.name, doc.text, chunk_text)
+
     # Store document
     response = repo.add_document(doc.name, doc.text)
 
@@ -80,6 +87,8 @@ def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_rep
     # Update chunk count
     response.chunk_count = len(chunks)
     return response
+
+
 
 @app.get("/documents", response_model=list[DocumentResponse])
 def list_documents(repo: DocumentRepository = Depends(get_repository)):
