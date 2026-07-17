@@ -1,3 +1,5 @@
+import os
+from app.llm.ollama_provider import OllamaLLMProvider
 from fastapi import Depends, FastAPI, HTTPException
 from app.models import (
     DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse,
@@ -11,6 +13,7 @@ from app.services.answer_service import generate_answer
 from app.services.chunking_service import chunk_text
 from app.services.retrieval import get_retriever
 
+
 app = FastAPI(title="RAG Retrieval Diagnostics")
 
 # Single repository instance backing the running app (points at the
@@ -23,9 +26,20 @@ def get_repository() -> DocumentRepository:
     return _repository
 
 
-# Default provider is the deterministic fake - safe for local runs with no
-# LLM configured. Commit 6 adds a config-driven switch to a real provider.
-_llm_provider = FakeLLMProvider()
+
+# Provider selected via LLM_PROVIDER env var - defaults to the fake, so
+# the app runs (and CI passes) with zero LLM configuration. Set
+# LLM_PROVIDER=ollama locally (see .env.example) to use a real model.
+def _build_llm_provider() -> LLMProvider:
+    provider_name = os.environ.get("LLM_PROVIDER", "fake").lower()
+    if provider_name == "ollama":
+        return OllamaLLMProvider(
+            model=os.environ.get("LLM_MODEL", "qwen3:1.7b"),
+            base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+        )
+    return FakeLLMProvider()
+
+_llm_provider = _build_llm_provider()
 
 def get_llm_provider() -> LLMProvider:
     """FastAPI dependency - overridden in tests with a controllable fake."""
