@@ -20,6 +20,18 @@ class DocumentRepository(Protocol):
         """Persist chunks for an existing document. Raises ValueError if document_id is unknown."""
         ...
 
+    def create_document_with_chunks(self, name: str, text: str, chunker) -> DocumentResponse:
+        """
+        Create a document AND its chunks in a single transaction.
+
+        `chunker` is a callable (text, document_id, document_name) -> List[Chunk],
+        called internally once the document's ID is known but before the
+        transaction commits. If chunking or chunk insertion fails, the
+        document insert rolls back too - no orphaned, chunk-less document
+        is ever left behind. Raises ValueError if text is empty.
+        """
+        ...
+
     def get_document(self, document_id: str) -> Optional[dict]:
         """Return {'document_id', 'name', 'chunks'} for a document, or None if it doesn't exist."""
         ...
