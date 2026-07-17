@@ -1,11 +1,15 @@
 from fastapi import Depends, FastAPI, HTTPException
-from app.models import DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse
-
+from app.models import (
+    DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse,
+    AnswerRequest, AnswerResponse,
+)
 from app.database.repositories.interface import DocumentRepository
 from app.database.repositories.sqlite_repository import SQLiteDocumentRepository
+from app.llm.fake_provider import FakeLLMProvider
+from app.llm.provider import LLMProvider, LLMProviderError
+from app.services.answer_service import generate_answer
 from app.services.chunking_service import chunk_text
 from app.services.retrieval import get_retriever
-
 
 app = FastAPI(title="RAG Retrieval Diagnostics")
 
@@ -17,6 +21,17 @@ _repository = SQLiteDocumentRepository()
 def get_repository() -> DocumentRepository:
     """FastAPI dependency - overridden in tests to point at a temp DB."""
     return _repository
+
+
+# Default provider is the deterministic fake - safe for local runs with no
+# LLM configured. Commit 6 adds a config-driven switch to a real provider.
+_llm_provider = FakeLLMProvider()
+
+def get_llm_provider() -> LLMProvider:
+    """FastAPI dependency - overridden in tests with a controllable fake."""
+    return _llm_provider
+
+
 
 @app.get("/")
 def main_app():
@@ -88,6 +103,31 @@ def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository))
         retrieved_chunks=retrieved,
         message=message
     )
+
+
+@app.post("/answer", response_model=AnswerResponse)
+def answer(
+    request: AnswerRequest,
+    repo: DocumentRepository = Depends(get_repository),
+    provider: LLMProvider = Depends(get_llm_provider),
+):
+    """
+    User-facing question-answering endpoint.
+
+    Unlike /ask (retrieval debug - returns raw scored chunks), this
+    retrieves chunks, grounds a prompt in them, and returns a natural-
+    language answer with citations. All logic lives in answer_service;
+    this endpoint only maps its exceptions to HTTP responses.
+    """
+    try:
+        return generate_answer(request, repo, provider)
+    except ValueError as e:
+        # empty question or unsupported retrieval_mode
+        raise HTTPException(status_code=400, detail=str(e))
+    except LLMProviderError as e:
+        # provider outage/timeout - controlled error, not a raw stack trace
+        raise HTTPException(status_code=502, detail=f"LLM provider failed: {e}")
+
 
 if __name__ == "__main__":
     import uvicorn
