@@ -8,7 +8,8 @@ from app.models import (
 from app.database.repositories.interface import DocumentRepository
 from app.database.repositories.sqlite_repository import SQLiteDocumentRepository
 from app.llm.fake_provider import FakeLLMProvider
-from app.llm.provider import LLMProvider, LLMProviderError
+from app.llm.exceptions import LLMProviderError
+from app.llm.provider import LLMProvider
 from app.services.answer_service import generate_answer
 from app.services.chunking_service import chunk_text
 from app.services.retrieval import get_retriever
