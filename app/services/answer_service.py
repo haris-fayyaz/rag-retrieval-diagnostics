@@ -6,13 +6,19 @@ from app.services.retrieval import get_retriever
 NO_CONTEXT_MESSAGE = "No relevant information was found in the selected documents."
 
 # Fixed instructions prepended to every prompt - keeps the model grounded
-# to only the supplied context and tells it how to cite sources.
-GROUNDING_INSTRUCTIONS = (
+# to only the supplied context. {example_id} is filled in per-request with
+# a real chunk_id from the current retrieval (see _build_prompt) - a
+# hardcoded example like "[doc_2_chunk_3]" taught the model to invent a
+# "doc_" prefix that doesn't match our actual "{document_id}_chunk_{n}"
+# scheme (e.g. "1_chunk_0"), even though it never affected correctness
+# since citations are computed from retrieved chunks, not parsed from
+# the model's text.
+GROUNDING_INSTRUCTIONS_TEMPLATE = (
     "You must answer only from the supplied context.\n"
     "If the answer is not present, say that the available documents do not "
     "contain the answer.\n"
     "Cite supporting chunks using their IDs, for example:\n"
-    "[doc_2_chunk_3]"
+    "[{example_id}]"
 )
 
 
@@ -25,8 +31,12 @@ def _build_prompt(question: str, retrieved_chunks: list) -> str:
     ]
     context = "\n\n".join(context_blocks)
 
+    instructions = GROUNDING_INSTRUCTIONS_TEMPLATE.format(
+        example_id=retrieved_chunks[0].chunk_id
+    )
+
     return (
-        f"{GROUNDING_INSTRUCTIONS}\n\n"
+        f"{instructions}\n\n"
         f"Context:\n{context}\n\n"
         f"Question:\n{question}"
     )
