@@ -1,6 +1,6 @@
 from typing import Optional
 
-from app.llm.provider import LLMProviderError
+from app.llm.exceptions import LLMTemporaryError
 
 
 class FakeLLMProvider:
@@ -29,5 +29,5 @@ class FakeLLMProvider:
         self.call_count += 1
         self.last_prompt = prompt
         if self.fail:
-            raise LLMProviderError("Simulated provider failure")
+            raise LLMTemporaryError("Simulated provider failure")
         return self.response
