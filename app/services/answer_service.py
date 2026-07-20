@@ -1,4 +1,6 @@
+from app.core.config import settings
 from app.database.repositories.interface import DocumentRepository
+from app.llm.exceptions import LLMPermanentError, LLMTemporaryError
 from app.llm.provider import LLMProvider
 from app.models import AnswerChunkRef, AnswerRequest, AnswerResponse
 from app.services.retrieval import get_retriever
@@ -42,6 +44,41 @@ def _build_prompt(question: str, retrieved_chunks: list) -> str:
     )
 
 
+def _generate_with_retry(provider: LLMProvider, prompt: str) -> str:
+    """
+    Call provider.generate(prompt), retrying only genuinely transient
+    failures - up to settings.llm_max_retries additional attempts after
+    the first.
+
+    - LLMPermanentError: never retried. Propagates on the first attempt.
+      Retrying an identical bad request (unknown model, malformed input)
+      just reproduces the same failure - it wastes time and a retry
+      "slot" on something a second attempt cannot fix.
+    - LLMTemporaryError (and its subtype LLMTimeoutError): retried, since
+      these represent conditions that may resolve on their own (brief
+      network blip, provider momentarily busy, cold-start timeout).
+    - Once attempts are exhausted, the last temporary failure propagates
+      unchanged - the endpoint still maps it to a controlled 502, this
+      function only decides *how many times* to try, not how to report
+      failure.
+
+    Retries are capped by settings.llm_max_retries (env: LLM_MAX_RETRIES) -
+    this can never loop indefinitely, by construction: the for-loop range
+    is fixed before the first call is made.
+    """
+    max_attempts = settings.llm_max_retries + 1  # first attempt + N retries
+
+    for attempt in range(1, max_attempts + 1):
+        try:
+            return provider.generate(prompt)
+        except LLMPermanentError:
+            raise
+        except LLMTemporaryError:
+            if attempt == max_attempts:
+                raise
+            # else: loop again for the next attempt   
+
+
 def generate_answer(
     request: AnswerRequest,
     repo: DocumentRepository,
@@ -75,7 +112,7 @@ def generate_answer(
         return AnswerResponse(question=request.question, message=NO_CONTEXT_MESSAGE)
 
     prompt = _build_prompt(request.question, retrieved)
-    answer = provider.generate(prompt)  # LLMProviderError propagates to the endpoint
+    answer = _generate_with_retry(provider, prompt)  # LLMProviderError propagates to the endpoint
 
     # Citations = every chunk actually sent as context. We ground strictly
     # on retrieved chunks, so all of them are valid sources - this is more
