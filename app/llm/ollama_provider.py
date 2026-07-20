@@ -1,6 +1,6 @@
 import httpx
 
-from app.llm.provider import LLMProviderError
+from app.llm.exceptions import LLMTemporaryError
 
 
 class OllamaLLMProvider:
@@ -35,10 +35,10 @@ class OllamaLLMProvider:
         except httpx.HTTPError as e:
             # Network error, timeout, Ollama not running, model not pulled, etc -
             # all collapse into one controlled error type for the endpoint to catch.
-            raise LLMProviderError(f"Ollama request failed: {e}") from e
+            raise LLMTemporaryError(f"Ollama request failed: {e}") from e
 
         data = response.json()
         answer = data.get("response", "").strip()
         if not answer:
-            raise LLMProviderError("Ollama returned an empty response")
+            raise LLMTemporaryError("Ollama returned an empty response")
         return answer
