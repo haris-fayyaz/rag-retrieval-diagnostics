@@ -1,32 +1,6 @@
 import httpx
 
-from app.llm.exceptions import (LLMPermanentError, LLMTemporaryError, 
-                                LLMTimeoutError)
-
-class OllamaLLMProvider:
-    """
-    Real local LLM provider backed by Ollama (e.g. qwen3:1.7b).
-
-    For manual local testing only - never used in CI or the automated
-    test suite (those use FakeLLMProvider). Requires Ollama running
-    locally first:
-
-        ollama run qwen3:1.7b
-    """
-
-    def __init__(
-        self,
-        model: str = "qwen3:1.7b",
-        base_url: str = "http://localhost:11434",
-        timeout: float = 60.0,
-    ):
-        self.model = model
-        self.base_url = base_url.rstrip("/")
-        self.timeout = timeout
-
-import httpx
-
-from app.llm.exceptions import LLMPermanentError, LLMTemporaryError, LLMTimeoutError
+from app.llm.exceptions import LLMTemporaryError, LLMTimeoutError, LLMPermanentError
 
 
 class OllamaLLMProvider:
