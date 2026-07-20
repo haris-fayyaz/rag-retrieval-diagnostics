@@ -37,6 +37,34 @@ class SQLiteDocumentRepository:
                 )
             session.commit()
 
+    def create_document_with_chunks(self, name: str, text: str, chunker) -> DocumentResponse:
+        if not text.strip():
+            raise ValueError("Document text cannot be empty")
+
+        with self.SessionLocal() as session:
+            try:
+                document = DocumentORM(name=name)
+                session.add(document)
+                # flush (not commit) assigns document.id via the DB's
+                # autoincrement, without ending the transaction - so the
+                # chunker below can build correct chunk_ids, and everything
+                # still rolls back together if chunking fails.
+                session.flush()
+
+                chunks = chunker(text, str(document.id), name)
+                for index, chunk in enumerate(chunks):
+                    session.add(
+                        ChunkORM(document_id=document.id, chunk_index=index, text=chunk.text_preview)
+                    )
+
+                session.commit()
+                return DocumentResponse(
+                    document_id=str(document.id), name=name, chunk_count=len(chunks)
+                )
+            except Exception:
+                session.rollback()
+                raise
+
     def get_document(self, document_id: str) -> Optional[Dict]:
         with self.SessionLocal() as session:
             document = self._get_document_orm(session, document_id)

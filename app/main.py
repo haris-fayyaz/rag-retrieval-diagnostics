@@ -1,8 +1,15 @@
+import os
+from app.llm.ollama_provider import OllamaLLMProvider
 from fastapi import Depends, FastAPI, HTTPException
-from app.models import DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse
-
+from app.models import (
+    DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse,
+    AnswerRequest, AnswerResponse,
+)
 from app.database.repositories.interface import DocumentRepository
 from app.database.repositories.sqlite_repository import SQLiteDocumentRepository
+from app.llm.fake_provider import FakeLLMProvider
+from app.llm.provider import LLMProvider, LLMProviderError
+from app.services.answer_service import generate_answer
 from app.services.chunking_service import chunk_text
 from app.services.retrieval import get_retriever
 
@@ -17,6 +24,28 @@ _repository = SQLiteDocumentRepository()
 def get_repository() -> DocumentRepository:
     """FastAPI dependency - overridden in tests to point at a temp DB."""
     return _repository
+
+
+
+# Provider selected via LLM_PROVIDER env var - defaults to the fake, so
+# the app runs (and CI passes) with zero LLM configuration. Set
+# LLM_PROVIDER=ollama locally (see .env.example) to use a real model.
+def _build_llm_provider() -> LLMProvider:
+    provider_name = os.environ.get("LLM_PROVIDER", "fake").lower()
+    if provider_name == "ollama":
+        return OllamaLLMProvider(
+            model=os.environ.get("LLM_MODEL", "qwen3:1.7b"),
+            base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+        )
+    return FakeLLMProvider()
+
+_llm_provider = _build_llm_provider()
+
+def get_llm_provider() -> LLMProvider:
+    """FastAPI dependency - overridden in tests with a controllable fake."""
+    return _llm_provider
+
+
 
 @app.get("/")
 def main_app():
@@ -41,6 +70,13 @@ def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_rep
     if not doc.text.strip():
         raise HTTPException(status_code=400, detail="Document text cannot be empty")
 
+    # Single transaction: document row and its chunks are created together,
+    # or not at all. Previously this was two separate commits (add_document,
+    # then save_chunks) - if the second failed, the document would be left
+    # behind with zero chunks. See tests/test_persistence.py for the
+    # regression test covering this.
+    return repo.create_document_with_chunks(doc.name, doc.text, chunk_text)
+
     # Store document
     response = repo.add_document(doc.name, doc.text)
 
@@ -51,6 +87,8 @@ def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_rep
     # Update chunk count
     response.chunk_count = len(chunks)
     return response
+
+
 
 @app.get("/documents", response_model=list[DocumentResponse])
 def list_documents(repo: DocumentRepository = Depends(get_repository)):
@@ -88,6 +126,31 @@ def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository))
         retrieved_chunks=retrieved,
         message=message
     )
+
+
+@app.post("/answer", response_model=AnswerResponse)
+def answer(
+    request: AnswerRequest,
+    repo: DocumentRepository = Depends(get_repository),
+    provider: LLMProvider = Depends(get_llm_provider),
+):
+    """
+    User-facing question-answering endpoint.
+
+    Unlike /ask (retrieval debug - returns raw scored chunks), this
+    retrieves chunks, grounds a prompt in them, and returns a natural-
+    language answer with citations. All logic lives in answer_service;
+    this endpoint only maps its exceptions to HTTP responses.
+    """
+    try:
+        return generate_answer(request, repo, provider)
+    except ValueError as e:
+        # empty question or unsupported retrieval_mode
+        raise HTTPException(status_code=400, detail=str(e))
+    except LLMProviderError as e:
+        # provider outage/timeout - controlled error, not a raw stack trace
+        raise HTTPException(status_code=502, detail=f"LLM provider failed: {e}")
+
 
 if __name__ == "__main__":
     import uvicorn

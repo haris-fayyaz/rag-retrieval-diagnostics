@@ -127,3 +127,36 @@ def test_save_chunks_for_unknown_document_raises(client):
         repo.save_chunks("9999", bogus_chunk)
 
     assert repo.get_chunks(["9999"]) == []
+    
+    
+def test_document_creation_is_transactional(client):
+    """
+    Task 15 requirement #9: document and chunk creation happen in one
+    transaction - if chunking/chunk-saving fails, no empty/orphaned
+    document is left behind, and the session rolls back cleanly.
+
+    Simulates a chunker failure (any exception during chunk generation
+    or insertion) and confirms the document count is unchanged - proving
+    create_document_with_chunks() is atomic, not "create doc, then
+    separately try to add chunks".
+    """
+    _, repo, _ = client
+
+    def broken_chunker(text, document_id, document_name):
+        raise RuntimeError("simulated chunking failure")
+
+    before = repo.list_documents()
+
+    with pytest.raises(RuntimeError):
+        repo.create_document_with_chunks("broken.txt", "some text", broken_chunker)
+
+    after = repo.list_documents()
+    assert before == after  # nothing was persisted - no orphaned document
+
+    # A working chunker afterward proves the session/engine is still
+    # healthy - i.e. the failed transaction didn't leave the connection
+    # in a broken state (rolled back and closed correctly).
+    from app.services.chunking_service import chunk_text
+    response = repo.create_document_with_chunks("policy.txt", "Real content here.", chunk_text)
+    assert response.chunk_count == 1
+    assert len(repo.list_documents()) == len(before) + 1
