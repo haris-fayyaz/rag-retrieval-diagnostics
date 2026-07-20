@@ -1,170 +1,186 @@
 # RAG Retrieval Diagnostics
 
-A lightweight, in-memory RAG (Retrieval-Augmented Generation) backend for testing and evaluating retrieval quality.
+A FastAPI backend for testing and evaluating RAG (Retrieval-Augmented
+Generation) retrieval quality, with SQLite persistence and a grounded
+answer-generation layer on top.
 
 ## Features
 
-- **FastAPI Backend**: 4 endpoints for document management and retrieval
-- **TF-IDF Retrieval**: Cosine similarity-based document ranking (no embeddings yet)
-- **In-Memory Storage**: Dictionary-based document and chunk storage
-- **Paragraph Chunking**: Automatic text splitting with configurable chunk size (default: 200 characters)
-- **Retrieval Evaluation**: Automated evaluation script to measure retrieval quality
-- **CI/CD Pipeline**: GitHub Actions for linting (ruff) and testing (pytest)
+- **Persistent storage** — SQLite via SQLAlchemy ORM, managed with Alembic migrations
+- **Repository pattern** — API and services depend on a `DocumentRepository` protocol, never on SQL directly
+- **Three retrieval modes** — TF-IDF (default), semantic (sentence-transformers), and hybrid (reciprocal rank fusion)
+- **Two question-answering endpoints**:
+  - `/ask` — retrieval debug endpoint, returns raw scored chunks
+  - `/answer` — user-facing endpoint, returns a grounded natural-language answer with citations
+- **LLM provider abstraction** — swappable backends behind an `LLMProvider` protocol
+- **Retrieval evaluation** — automated script scoring retrieval quality against a labeled question set
+- **CI** — lint, tests, migration validation, and retrieval evaluation on every push
 
 ## Tech Stack
 
-- Python 3.14
-- FastAPI
-- Pydantic
-- scikit-learn (TF-IDF)
-- pytest
-- ruff (linting)
+Python 3.12+ · FastAPI · SQLAlchemy 2.x · Alembic · scikit-learn (TF-IDF) · sentence-transformers (semantic) · pytest · ruff
 
 ## Setup
 
 ```bash
-# Clone and install
 git clone https://github.com/haris-fayyaz/rag-retrieval-diagnostics.git
 cd rag-retrieval-diagnostics
 pip install -r requirements.txt
 ```
 
+### Database
+
+The app uses a SQLite file at `data/app.db` (gitignored, disposable).
+Initialize/migrate it before first run:
+
+```bash
+alembic upgrade head
+```
+
+Delete `data/app.db` any time and rerun the command above to reset.
+
+### Environment configuration
+
+Copy `.env.example` to `.env` and adjust as needed:
+
+```bash
+cp .env.example .env
+```
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `LLM_PROVIDER` | `fake` | `fake` (deterministic, no network — used in tests/CI) or `ollama` (real local model) |
+| `LLM_MODEL` | `qwen3:1.7b` | Model name, used only when `LLM_PROVIDER=ollama` |
+| `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL, used only when `LLM_PROVIDER=ollama` |
+| `LLM_API_KEY` | *(unused)* | Reserved for a future hosted API provider |
+
+**Note:** these are plain `os.environ` reads — the app does not auto-load
+`.env`. Export the variables in your shell before starting the server if
+you want anything other than the fake provider:
+
+```bash
+export LLM_PROVIDER=ollama
+export LLM_MODEL=qwen3:1.7b
+export OLLAMA_BASE_URL=http://localhost:11434
+```
+
+For real local answers, install [Ollama](https://ollama.com/download) and pull the model:
+
+```bash
+ollama run qwen3:1.7b
+```
+
 ## Running the Backend
 
 ```bash
-# Start the server (runs on http://localhost:8000)
-python -m uvicorn app.main:app --reload
+uvicorn app.main:app --reload
 ```
 
-**Available Endpoints:**
+Interactive API docs: `http://localhost:8000/docs`
 
-- `GET /` - Root endpoint
-- `GET /health` - Health check
-- `POST /documents` - Add a new document (returns document_id and chunk_count)
-- `GET /documents` - List all stored documents
-- `POST /ask` - Retrieve relevant chunks for a question
+## Endpoints
 
-Example request:
+| Endpoint | Purpose |
+|---|---|
+| `GET /health` | Health check |
+| `POST /documents` | Add a document (chunked and persisted atomically) |
+| `GET /documents` | List stored documents |
+| `POST /ask` | Retrieval debug — returns raw scored chunks, no generation |
+| `POST /answer` | Grounded question answering — returns a generated answer with citations |
 
+### `/ask` vs `/answer`
+
+`/ask` is for inspecting retrieval behavior directly — it returns the
+scored chunks and nothing else. `/answer` builds on the same retrieval
+step, then grounds a prompt in only the retrieved chunks, calls an LLM,
+and returns a natural-language answer plus the chunk IDs it's grounded
+in. `/ask` never calls an LLM; `/answer` never returns raw chunk text
+previews, only source references.
+
+### `POST /answer` example
+
+Request:
 ```json
-POST /ask
 {
   "question": "What is the laptop reimbursement limit?",
+  "document_ids": ["1"],
+  "retrieval_mode": "tfidf",
   "top_k": 3,
-  "document_ids": null
+  "min_score": 0.10
 }
 ```
 
-## Testing
+Response:
+```json
+{
+  "question": "What is the laptop reimbursement limit?",
+  "answer": "Employees may claim up to $800 for an approved laptop purchase.",
+  "citations": ["1_chunk_0"],
+  "retrieved_chunks": [
+    {
+      "chunk_id": "1_chunk_0",
+      "document_id": "1",
+      "document_name": "it_policy.txt",
+      "score": 0.82
+    }
+  ],
+  "message": null
+}
+```
 
-Run the test suite:
+### Grounding and no-context behavior
+
+- Only chunks returned by retrieval are sent to the LLM — never the full document store.
+- Each chunk is tagged with its ID in the prompt (`[1_chunk_0]`), and the model is instructed to cite by ID and to say so if the context doesn't contain the answer.
+- `citations` is computed from the chunks actually retrieved, not parsed from the model's text — this keeps citations reliable regardless of how the model phrases its answer.
+- If no chunk clears `min_score`, the LLM is never called. The response returns `answer: null` with an explanatory `message`:
+```json
+{
+  "question": "What is the cryptocurrency payment policy?",
+  "answer": null,
+  "citations": [],
+  "retrieved_chunks": [],
+  "message": "No relevant information was found in the selected documents."
+}
+```
+
+### Error handling (`/answer`)
+
+| Condition | Response |
+|---|---|
+| Empty question | `400` |
+| Unsupported `retrieval_mode` | `400` |
+| Invalid/unknown `document_ids` | `200` with no-context response (not an error — same as no matching chunks) |
+| No chunks above `min_score` | `200` with no-context response |
+| LLM provider failure | `502`, controlled error detail (no stack trace) |
+
+## Testing
 
 ```bash
 pytest
 ```
 
-Current status: **4 tests passing** ✓
+Automated tests use `FakeLLMProvider` — no network calls, no API key,
+and no Ollama dependency. CI never requires a real model.
+
+Coverage includes: document/chunk persistence, transactional
+create-with-chunks (no orphaned documents on failure), retrieval over
+persisted data, `/answer` grounding and citations, no-context rejection,
+retrieval selectivity across `top_k`/`min_score`, and provider-failure
+handling.
 
 ## Retrieval Evaluation
 
-Measure retrieval quality automatically with the evaluation script:
-
 ```bash
-python scripts/evaluate_retrieval.py
+python -m scripts.evaluate_retrieval --mode tfidf --min-score 0.10 --top-k 3
 ```
 
-### What the Evaluation Script Does
+Scores retrieval quality (top-1 accuracy, recall@k) against a labeled
+question set in `eval/eval_questions.json`. Supports `tfidf`, `semantic`,
+and `hybrid` modes. See `eval/retrieval_comparison.md` for prior findings.
 
-1. **Loads sample documents**: 3 policy documents (HR, IT, Finance) from `eval/sample_documents.json`
-2. **Loads evaluation questions**: 8 diverse questions from `eval/eval_questions.json`
-   - 3 single-document questions (clear answers)
-   - 1 multi-document question (requires cross-doc reasoning)
-   - 2 unanswerable/vague questions (should return null)
-   - 2 misleading questions (edge cases)
-3. **Runs retrieval**: Queries the system with each question
-4. **Compares results**: Matches top-retrieved chunk's document against expected document
-5. **Reports accuracy**: Shows pass/fail per question and overall accuracy metric
+## Architecture Notes
 
-### Example Output
-
-```
-RETRIEVAL EVALUATION RESULTS
-========================================================================================================================
-Question                                      Expected        Top Result      Score      Pass
-========================================================================================================================
-How much annual leave are employees entitl... hr_policy       hr_policy       0.4862     ✓
-What is the laptop reimbursement limit?       it_policy       it_policy       0.1877     ✓
-...
-
-========================================
-SUMMARY METRICS
-========================================
-Total questions:  8
-Passed:           4
-Failed:           4
-Accuracy:         50.0%
-
-```
-
-## Project Structure
-
-```
-rag-retrieval-diagnostics/
-├── app/
-│   ├── main.py                    # FastAPI application & endpoints
-│   ├── models.py                  # Pydantic schemas
-│   └── services/
-│       ├── chunking_service.py    # Text splitting (paragraph-based)
-│       ├── document_store.py      # In-memory document storage
-│       └── retrieval_service.py   # TF-IDF ranking
-├── tests/
-│   ├── test_chunking.py
-│   └── test_retrieval.py
-├── eval/
-│   ├── sample_documents.json      # 3 sample policy documents
-│   └── eval_questions.json        # 8 evaluation questions
-├── scripts/
-│   └── evaluate_retrieval.py      # Retrieval quality evaluation script
-├── .github/
-│   └── workflows/ci.yml           # GitHub Actions CI pipeline
-├── requirements.txt
-└── README.md
-```
-
-## Key Configuration
-
-- **Chunk Size**: 200 characters (configured in `chunking_service.py`)
-- **Chunking Strategy**: Paragraph-based (splits on `\n\n`)
-- **Retrieval Method**: TF-IDF + cosine similarity
-- **Default Top-K**: 3 results
-
-## Next Steps
-
-This is a **baseline implementation**. Future improvements include:
-
-- [ ] Token-based chunking (instead of character-based)
-- [ ] Embedding-based retrieval (instead of TF-IDF)
-- [ ] Persistent database (instead of in-memory)
-- [ ] LLM integration for answer generation
-- [ ] Advanced evaluation metrics (NDCG, MRR, F1)
-- [ ] Reranking component
-
-## CI/CD Pipeline
-
-The project includes GitHub Actions workflow (`ci.yml`):
-
-- Runs on every push/PR to `develop` and `main`
-- Linting with ruff
-- Tests with pytest
-- Main branch is protected (PR-only merges)
-
-## Notes
-
-- No LLM integration yet (retrieval only)
-- No embeddings or vector databases yet (TF-IDF baseline)
-- In-memory storage (data lost on restart)
-- For educational and diagnostic purposes
-
-## License
-
-MIT
+- **Repository pattern**: `app/database/repositories/interface.py` defines the `DocumentRepository` protocol; `sqlite_repository.py` is the only implementation. The API and services depend solely on the protocol.
+- **LLM provider pattern**: `app/llm/provider.py` defines the `LLMProvider` protocol. `FakeLLMProvider` (tests/CI) and `OllamaLLMProvider` (local, real) both implement it; `answer_service.py` depends only on the interface.
+- **Migrations**: Alembic manages schema changes under `alembic/versions/`. Never edit the schema by hand — add a new migration.
