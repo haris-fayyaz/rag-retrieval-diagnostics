@@ -1,4 +1,4 @@
-import os
+from app.core.config import settings
 from app.llm.ollama_provider import OllamaLLMProvider
 from fastapi import Depends, FastAPI, HTTPException
 from app.models import (
@@ -28,15 +28,16 @@ def get_repository() -> DocumentRepository:
 
 
 
-# Provider selected via LLM_PROVIDER env var - defaults to the fake, so
-# the app runs (and CI passes) with zero LLM configuration. Set
-# LLM_PROVIDER=ollama locally (see .env.example) to use a real model.
+# Provider selected via settings.llm_provider (LLM_PROVIDER env var) -
+# defaults to the fake, so the app runs (and CI passes) with zero LLM
+# configuration. Set LLM_PROVIDER=ollama locally (see .env.example) to
+# use a real model.
 def _build_llm_provider() -> LLMProvider:
-    provider_name = os.environ.get("LLM_PROVIDER", "fake").lower()
-    if provider_name == "ollama":
+    if settings.llm_provider == "ollama":
         return OllamaLLMProvider(
-            model=os.environ.get("LLM_MODEL", "qwen3:1.7b"),
-            base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+            model=settings.llm_model,
+            base_url=settings.ollama_base_url,
+            timeout=settings.llm_timeout_seconds,
         )
     return FakeLLMProvider()
 
