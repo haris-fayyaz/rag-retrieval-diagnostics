@@ -49,7 +49,7 @@ def _build_prompt(question: str, retrieved_chunks: list) -> str:
     )
 
 
-def _generate_with_retry(provider: LLMProvider, prompt: str) -> str:
+def _generate_with_retry(provider: LLMProvider, prompt: str, request_id: str,) -> str:
     """
     Call provider.generate(prompt), retrying only genuinely transient
     failures - up to settings.llm_max_retries additional attempts after
