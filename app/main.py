@@ -1,6 +1,7 @@
 from app.core.config import settings
 from app.llm.ollama_provider import OllamaLLMProvider
 from fastapi import Depends, FastAPI, HTTPException
+import uuid
 from app.models import (
     DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse,
     AnswerRequest, AnswerResponse,
@@ -143,15 +144,26 @@ def answer(
     retrieves chunks, grounds a prompt in them, and returns a natural-
     language answer with citations. All logic lives in answer_service;
     this endpoint only maps its exceptions to HTTP responses.
+
+    A request_id is generated here (not inside answer_service) so it's
+    available even when generate_answer raises before building a
+    response - every outcome (success, 400, 502) carries the same ID.
     """
+    request_id = str(uuid.uuid4())
     try:
-        return generate_answer(request, repo, provider)
+        return generate_answer(request, repo, provider, request_id)
     except ValueError as e:
         # empty question or unsupported retrieval_mode
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=400, detail={"request_id": request_id, "error": str(e)}
+        )
     except LLMProviderError as e:
-        # provider outage/timeout - controlled error, not a raw stack trace
-        raise HTTPException(status_code=502, detail=f"LLM provider failed: {e}")
+        # provider outage/timeout, retries exhausted - controlled error,
+        # not a raw stack trace
+        raise HTTPException(
+            status_code=502,
+            detail={"request_id": request_id, "error": f"LLM provider failed: {e}"},
+        )
 
 
 if __name__ == "__main__":
