@@ -58,9 +58,25 @@ class AnswerChunkRef(BaseModel):
     document_name: str
     score: float
 
+class AnswerMetadata(BaseModel):
+    """
+    Execution metadata for /answer - lets a slow or failing request be
+    diagnosed from the response/logs alone, without stepping through
+    code: was retrieval slow, or generation? How many chunks matched?
+    Which retrieval mode and provider actually ran?
+    """
+    retrieval_ms: float
+    generation_ms: Optional[float] = None  # None when the LLM was never called (no-context)
+    total_ms: float
+    retrieved_chunk_count: int
+    retrieval_mode: str
+    provider: str
+
 class AnswerResponse(BaseModel):
+    request_id: str
     question: str
     answer: Optional[str] = None
     citations: List[str] = []
     retrieved_chunks: List[AnswerChunkRef] = []
     message: Optional[str] = None
+    metadata: Optional[AnswerMetadata] = None

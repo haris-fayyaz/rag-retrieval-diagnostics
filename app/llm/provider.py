@@ -20,11 +20,3 @@ class LLMProvider(Protocol):
         controlled error rather than an unhandled exception.
         """
         ...
-
-
-class LLMProviderError(Exception):
-    """Raised when an LLM provider fails to produce a response
-    (network error, timeout, bad response, etc). answer_service
-    catches this and turns it into a clean HTTP error - never a
-    raw stack trace."""
-    pass

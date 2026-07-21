@@ -1,6 +1,8 @@
-import os
+from app.core.config import settings
+from app.core.logging import configure_logging
 from app.llm.ollama_provider import OllamaLLMProvider
 from fastapi import Depends, FastAPI, HTTPException
+import uuid
 from app.models import (
     DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse,
     AnswerRequest, AnswerResponse,
@@ -8,12 +10,13 @@ from app.models import (
 from app.database.repositories.interface import DocumentRepository
 from app.database.repositories.sqlite_repository import SQLiteDocumentRepository
 from app.llm.fake_provider import FakeLLMProvider
-from app.llm.provider import LLMProvider, LLMProviderError
+from app.llm.exceptions import LLMProviderError
+from app.llm.provider import LLMProvider
 from app.services.answer_service import generate_answer
 from app.services.chunking_service import chunk_text
 from app.services.retrieval import get_retriever
 
-
+configure_logging()  # must run before anything logs - see app/core/logging.py
 app = FastAPI(title="RAG Retrieval Diagnostics")
 
 # Single repository instance backing the running app (points at the
@@ -27,15 +30,16 @@ def get_repository() -> DocumentRepository:
 
 
 
-# Provider selected via LLM_PROVIDER env var - defaults to the fake, so
-# the app runs (and CI passes) with zero LLM configuration. Set
-# LLM_PROVIDER=ollama locally (see .env.example) to use a real model.
+# Provider selected via settings.llm_provider (LLM_PROVIDER env var) -
+# defaults to the fake, so the app runs (and CI passes) with zero LLM
+# configuration. Set LLM_PROVIDER=ollama locally (see .env.example) to
+# use a real model.
 def _build_llm_provider() -> LLMProvider:
-    provider_name = os.environ.get("LLM_PROVIDER", "fake").lower()
-    if provider_name == "ollama":
+    if settings.llm_provider == "ollama":
         return OllamaLLMProvider(
-            model=os.environ.get("LLM_MODEL", "qwen3:1.7b"),
-            base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+            model=settings.llm_model,
+            base_url=settings.ollama_base_url,
+            timeout=settings.llm_timeout_seconds,
         )
     return FakeLLMProvider()
 
@@ -141,15 +145,26 @@ def answer(
     retrieves chunks, grounds a prompt in them, and returns a natural-
     language answer with citations. All logic lives in answer_service;
     this endpoint only maps its exceptions to HTTP responses.
+
+    A request_id is generated here (not inside answer_service) so it's
+    available even when generate_answer raises before building a
+    response - every outcome (success, 400, 502) carries the same ID.
     """
+    request_id = str(uuid.uuid4())
     try:
-        return generate_answer(request, repo, provider)
+        return generate_answer(request, repo, provider, request_id)
     except ValueError as e:
         # empty question or unsupported retrieval_mode
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(
+            status_code=400, detail={"request_id": request_id, "error": str(e)}
+        )
     except LLMProviderError as e:
-        # provider outage/timeout - controlled error, not a raw stack trace
-        raise HTTPException(status_code=502, detail=f"LLM provider failed: {e}")
+        # provider outage/timeout, retries exhausted - controlled error,
+        # not a raw stack trace
+        raise HTTPException(
+            status_code=502,
+            detail={"request_id": request_id, "error": f"LLM provider failed: {e}"},
+        )
 
 
 if __name__ == "__main__":

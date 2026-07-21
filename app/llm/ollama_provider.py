@@ -1,6 +1,6 @@
 import httpx
 
-from app.llm.provider import LLMProviderError
+from app.llm.exceptions import LLMTemporaryError, LLMTimeoutError, LLMPermanentError
 
 
 class OllamaLLMProvider:
@@ -32,13 +32,33 @@ class OllamaLLMProvider:
                 timeout=self.timeout,
             )
             response.raise_for_status()
+        except httpx.TimeoutException as e:
+            # Took longer than self.timeout - may just need another
+            # attempt (e.g. model still warming up). Retryable.
+            raise LLMTimeoutError(f"Ollama request timed out after {self.timeout}s: {e}") from e
+        except httpx.ConnectError as e:
+            # Ollama isn't reachable right now - may come back shortly.
+            # Retryable.
+            raise LLMTemporaryError(f"Could not connect to Ollama: {e}") from e
+        except httpx.HTTPStatusError as e:
+            # 5xx = Ollama's own server error - worth retrying. 4xx = we
+            # sent something wrong (bad model name, malformed request) -
+            # retrying resends the exact same bad request, so don't.
+            status = e.response.status_code if e.response is not None else None
+            if status is not None and status >= 500:
+                raise LLMTemporaryError(f"Ollama server error ({status}): {e}") from e
+            raise LLMPermanentError(f"Ollama rejected the request ({status}): {e}") from e
         except httpx.HTTPError as e:
-            # Network error, timeout, Ollama not running, model not pulled, etc -
-            # all collapse into one controlled error type for the endpoint to catch.
-            raise LLMProviderError(f"Ollama request failed: {e}") from e
+            # Any other httpx-level failure not specifically classified
+            # above - default to temporary. Blocking a retry on an
+            # unrecognized error is riskier than one extra attempt.
+            raise LLMTemporaryError(f"Ollama request failed: {e}") from e
 
         data = response.json()
         answer = data.get("response", "").strip()
         if not answer:
-            raise LLMProviderError("Ollama returned an empty response")
+            # A 200 OK with no text isn't a network problem - retrying
+            # the identical request would very likely produce the same
+            # empty response. Not retryable.
+            raise LLMPermanentError("Ollama returned an empty response")
         return answer
