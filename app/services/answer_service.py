@@ -1,10 +1,14 @@
 import time
 from app.core.config import settings
+from app.core.logging import get_logger, log_event
 from app.database.repositories.interface import DocumentRepository
 from app.llm.exceptions import LLMPermanentError, LLMTemporaryError
 from app.llm.provider import LLMProvider
 from app.models import AnswerChunkRef, AnswerRequest, AnswerResponse, AnswerMetadata
 from app.services.retrieval import get_retriever
+
+
+logger = get_logger()
 
 NO_CONTEXT_MESSAGE = "No relevant information was found in the selected documents."
 
@@ -67,17 +71,29 @@ def _generate_with_retry(provider: LLMProvider, prompt: str) -> str:
     this can never loop indefinitely, by construction: the for-loop range
     is fixed before the first call is made.
     """
-    max_attempts = settings.llm_max_retries + 1  # first attempt + N retries
+    max_attempts = settings.llm_max_retries + 1
 
     for attempt in range(1, max_attempts + 1):
+        log_event(logger, "llm_attempt_started", request_id=request_id, attempt=attempt, max_attempts=max_attempts)
         try:
             return provider.generate(prompt)
-        except LLMPermanentError:
+        except LLMPermanentError as e:
+            log_event(
+                logger, "provider_failed", request_id=request_id, attempt=attempt,
+                error_type=type(e).__name__, retryable=False,
+            )
             raise
-        except LLMTemporaryError:
+        except LLMTemporaryError as e:
+            log_event(
+                logger, "provider_failed", request_id=request_id, attempt=attempt,
+                error_type=type(e).__name__, retryable=True,
+            )
             if attempt == max_attempts:
                 raise
-            # else: loop again for the next attempt   
+            log_event(
+                logger, "retry_triggered", request_id=request_id,
+                next_attempt=attempt + 1, max_attempts=max_attempts,
+            )
 
 def _provider_name(provider: LLMProvider) -> str:
     """
@@ -108,6 +124,7 @@ def generate_answer(
     unchanged - the endpoint maps that to HTTP 502.
     """
     total_start = time.perf_counter()
+    log_event(logger, "answer_request_started", request_id=request_id, retrieval_mode=request.retrieval_mode)
 
     if not request.question.strip():
         raise ValueError("Question cannot be empty")
@@ -127,8 +144,14 @@ def generate_answer(
         else []
     )
     retrieval_ms = (time.perf_counter() - retrieval_start) * 1000
+    log_event(
+        logger, "retrieval_completed", request_id=request_id,
+        retrieval_mode=request.retrieval_mode, retrieved_chunk_count=len(retrieved),
+        retrieval_ms=retrieval_ms,
+    )
 
     if not retrieved:
+        log_event(logger, "no_context_found", request_id=request_id, retrieval_mode=request.retrieval_mode)
         return AnswerResponse(
             request_id=request_id,
             question=request.question,
@@ -146,13 +169,19 @@ def generate_answer(
     prompt = _build_prompt(request.question, retrieved)
 
     generation_start = time.perf_counter()
-    answer = _generate_with_retry(provider, prompt)  # LLMProviderError propagates to the endpoint
+    answer = _generate_with_retry(provider, prompt, request_id)  # LLMProviderError propagates to the endpoint
     generation_ms = (time.perf_counter() - generation_start) * 1000
 
     # Citations = every chunk actually sent as context. We ground strictly
     # on retrieved chunks, so all of them are valid sources - this is more
     # reliable than parsing "[chunk_id]" back out of free-form model text.
     citations = [chunk.chunk_id for chunk in retrieved]
+    total_ms = (time.perf_counter() - total_start) * 1000
+    log_event(
+        logger, "answer_completed", request_id=request_id, retrieval_mode=request.retrieval_mode,
+        retrieved_chunk_count=len(retrieved), retrieval_ms=retrieval_ms,
+        generation_ms=generation_ms, total_ms=total_ms,
+    )
 
     return AnswerResponse(
         request_id=request_id,
@@ -171,7 +200,7 @@ def generate_answer(
         metadata=AnswerMetadata(
             retrieval_ms=retrieval_ms,
             generation_ms=generation_ms,
-            total_ms=(time.perf_counter() - total_start) * 1000,
+            total_ms=total_ms,  # now reuses the value computed above, instead of calling perf_counter() again
             retrieved_chunk_count=len(retrieved),
             retrieval_mode=request.retrieval_mode,
             provider=provider_name,
