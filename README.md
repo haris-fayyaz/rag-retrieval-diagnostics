@@ -13,6 +13,8 @@ answer-generation layer on top.
   - `/ask` — retrieval debug endpoint, returns raw scored chunks
   - `/answer` — user-facing endpoint, returns a grounded natural-language answer with citations
 - **LLM provider abstraction** — swappable backends behind an `LLMProvider` protocol
+- **Resilience** — configurable timeout, limited automatic retries on transient LLM failures only
+- **Observability** — request tracing (`request_id`) and per-stage timing on every `/answer` call, structured JSON logs
 - **Retrieval evaluation** — automated script scoring retrieval quality against a labeled question set
 - **CI** — lint, tests, migration validation, and retrieval evaluation on every push
 
@@ -52,6 +54,8 @@ cp .env.example .env
 | `LLM_PROVIDER` | `fake` | `fake` (deterministic, no network — used in tests/CI) or `ollama` (real local model) |
 | `LLM_MODEL` | `qwen3:1.7b` | Model name, used only when `LLM_PROVIDER=ollama` |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` | Ollama server URL, used only when `LLM_PROVIDER=ollama` |
+| `LLM_TIMEOUT_SECONDS` | `30` | Max time to wait for a single provider call before it's treated as a timeout (retryable) |
+| `LLM_MAX_RETRIES` | `1` | Additional attempts after the first on a *temporary* failure (timeout, connection error). Never retries validation errors, no-context, or permanent failures. Total attempts = 1 + this value, always bounded — never retries indefinitely |
 | `LLM_API_KEY` | *(unused)* | Reserved for a future hosted API provider |
 
 **Note:** these are plain `os.environ` reads — the app does not auto-load
@@ -64,11 +68,38 @@ export LLM_MODEL=qwen3:1.7b
 export OLLAMA_BASE_URL=http://localhost:11434
 ```
 
-For real local answers, install [Ollama](https://ollama.com/download) and pull the model:
+### Manual testing with a real model (Ollama)
 
+Automated tests never call Ollama - only `FakeLLMProvider` runs in CI.
+To try a real model locally:
+
+1. Install [Ollama](https://ollama.com/download) and pull the model:
 ```bash
 ollama run qwen3:1.7b
 ```
+(first run downloads the model; type `/bye` to exit the chat prompt - the server keeps running in the background)
+
+2. Confirm the server is up:
+```bash
+curl http://localhost:11434/api/tags
+```
+
+3. Export the provider config in the same shell you'll run uvicorn from:
+```bash
+export LLM_PROVIDER=ollama
+export LLM_MODEL=qwen3:1.7b
+export OLLAMA_BASE_URL=http://localhost:11434
+export LLM_TIMEOUT_SECONDS=30
+export LLM_MAX_RETRIES=1
+```
+
+4. Start the app and test via Swagger (`http://localhost:8000/docs`) or curl:
+```bash
+uvicorn app.main:app --reload
+```
+POST a document via `/documents`, then POST a question to `/answer` -
+the `answer` field will now be real generated text (not the fake canned
+response), and `metadata.provider` will read `"ollama"`.
 
 ## Running the Backend
 
@@ -77,6 +108,30 @@ uvicorn app.main:app --reload
 ```
 
 Interactive API docs: `http://localhost:8000/docs`
+
+## Observability
+
+Every `/answer` request logs structured JSON lines to stdout
+(`app/core/logging.py`), correlated by `request_id`:
+
+- `answer_request_started`
+- `retrieval_completed`
+- `no_context_found` (only on the no-context path)
+- `llm_attempt_started` (once per attempt, including retries)
+- `provider_failed` (on any provider error, tagged `retryable: true/false`)
+- `retry_triggered` (only when another attempt is about to happen)
+- `answer_completed`
+
+Example line:
+```json
+{"event": "retrieval_completed", "level": "INFO", "request_id": "4ea9...", "retrieval_mode": "tfidf", "retrieved_chunk_count": 1, "retrieval_ms": 12.4}
+```
+
+**Never logged:** API keys, full prompts, full question text, or full
+document content. Log fields are limited to IDs, counts, modes, and
+timings — enforced by `log_event()`'s explicit keyword-only signature,
+which doesn't accept an arbitrary object that might contain sensitive
+content by accident.
 
 ## Endpoints
 
@@ -113,6 +168,7 @@ Request:
 Response:
 ```json
 {
+  "request_id": "4ea9c1b2-6f3a-4e9d-9c2a-8f1e2d3c4b5a",
   "question": "What is the laptop reimbursement limit?",
   "answer": "Employees may claim up to $800 for an approved laptop purchase.",
   "citations": ["1_chunk_0"],
@@ -124,9 +180,26 @@ Response:
       "score": 0.82
     }
   ],
-  "message": null
+  "message": null,
+  "metadata": {
+    "retrieval_ms": 12.4,
+    "generation_ms": 820.7,
+    "total_ms": 835.1,
+    "retrieved_chunk_count": 1,
+    "retrieval_mode": "tfidf",
+    "provider": "ollama"
+  }
 }
 ```
+
+`request_id` is a fresh UUID generated per request, present in every
+response - success, validation error, or provider failure - so a single
+ID can be used to correlate a client-reported issue with server logs.
+
+`metadata` reports execution timing separately for retrieval and
+generation, plus which mode/provider actually ran. `generation_ms` is
+`null` whenever the LLM was never called (no-context requests never
+reach the LLM step at all).
 
 ### Grounding and no-context behavior
 
@@ -148,11 +221,32 @@ Response:
 
 | Condition | Response |
 |---|---|
-| Empty question | `400` |
-| Unsupported `retrieval_mode` | `400` |
+| Empty question | `400`, `{"request_id": ..., "error": ...}` |
+| Unsupported `retrieval_mode` | `400`, `{"request_id": ..., "error": ...}` |
 | Invalid/unknown `document_ids` | `200` with no-context response (not an error — same as no matching chunks) |
 | No chunks above `min_score` | `200` with no-context response |
-| LLM provider failure | `502`, controlled error detail (no stack trace) |
+| LLM provider failure (after retries exhausted) | `502`, `{"request_id": ..., "error": ...}` — controlled error, no stack trace |
+
+Every error response includes the same `request_id` a success response
+would have had, so it can be matched to the corresponding server logs.
+
+### Retries and timeouts
+
+Only genuinely transient LLM failures are retried:
+
+| Failure | Retried? | Why |
+|---|---|---|
+| Timeout (`LLM_TIMEOUT_SECONDS` exceeded) | Yes | May just need another attempt (e.g. model still warming up) |
+| Connection refused / provider unreachable | Yes | Provider may become reachable again shortly |
+| 5xx from provider | Yes | Server-side issue on the provider's end, may be transient |
+| 4xx from provider (bad model, malformed request) | **No** | Retrying resends the identical bad request — will fail the same way every time |
+| Empty response from provider | **No** | A 200 OK with no text isn't a network problem, retrying won't change the outcome |
+| Empty question / unsupported retrieval mode | **No** | Validation errors, never reach the provider at all |
+| No chunks found (no-context) | **No** | The LLM is never called in the first place |
+
+Retries are capped by `LLM_MAX_RETRIES` and can never loop indefinitely —
+the retry count is fixed before the first attempt is made, not decided
+dynamically. Once attempts are exhausted, the endpoint returns `502`.
 
 ## Testing
 
@@ -166,8 +260,9 @@ and no Ollama dependency. CI never requires a real model.
 Coverage includes: document/chunk persistence, transactional
 create-with-chunks (no orphaned documents on failure), retrieval over
 persisted data, `/answer` grounding and citations, no-context rejection,
-retrieval selectivity across `top_k`/`min_score`, and provider-failure
-handling.
+retrieval selectivity across `top_k`/`min_score`, provider-failure
+handling, request tracing, timing metadata, and retry/timeout behavior
+(`tests/test_resilience.py`).
 
 ## Retrieval Evaluation
 
@@ -183,4 +278,7 @@ and `hybrid` modes. See `eval/retrieval_comparison.md` for prior findings.
 
 - **Repository pattern**: `app/database/repositories/interface.py` defines the `DocumentRepository` protocol; `sqlite_repository.py` is the only implementation. The API and services depend solely on the protocol.
 - **LLM provider pattern**: `app/llm/provider.py` defines the `LLMProvider` protocol. `FakeLLMProvider` (tests/CI) and `OllamaLLMProvider` (local, real) both implement it; `answer_service.py` depends only on the interface.
+- **Exception hierarchy**: `app/llm/exceptions.py` distinguishes retryable (`LLMTemporaryError`, `LLMTimeoutError`) from non-retryable (`LLMPermanentError`) provider failures - this is what lets retry logic be type-driven instead of string-matching error messages.
+- **Config**: `app/core/config.py` centralizes all environment variable reads into one `Settings` object, instead of scattered `os.environ.get()` calls.
+- **Logging**: `app/core/logging.py` provides structured JSON logging via a `log_event()` helper with an explicit keyword-only signature - callers can't accidentally log a whole object that might contain sensitive content.
 - **Migrations**: Alembic manages schema changes under `alembic/versions/`. Never edit the schema by hand — add a new migration.
