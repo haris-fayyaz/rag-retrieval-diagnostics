@@ -1,4 +1,5 @@
 from app.core.config import settings
+from app.core.logging import configure_logging
 from app.llm.ollama_provider import OllamaLLMProvider
 from fastapi import Depends, FastAPI, HTTPException
 import uuid
@@ -15,7 +16,7 @@ from app.services.answer_service import generate_answer
 from app.services.chunking_service import chunk_text
 from app.services.retrieval import get_retriever
 
-
+configure_logging()  # must run before anything logs - see app/core/logging.py
 app = FastAPI(title="RAG Retrieval Diagnostics")
 
 # Single repository instance backing the running app (points at the
