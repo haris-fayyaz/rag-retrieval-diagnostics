@@ -83,7 +83,44 @@ def test_response_includes_source_chunk_ids(client):
     assert len(body["citations"]) == 1
     assert body["citations"][0] == body["retrieved_chunks"][0]["chunk_id"]
 
+def test_citations_never_include_unretrieved_chunks(client):
+    """
+    5. Returned citations cannot include chunks outside the retrieved set.
 
+    Seeds ONE document that produces TWO distinct chunks (laptop policy,
+    parking policy - unrelated topics), then asks a question that only
+    matches the laptop chunk with top_k=1. The parking chunk exists in
+    the same document and the same DB, so if citations were ever built
+    from "all chunks in the matched document" instead of "only what
+    retrieval actually returned", this test would catch it.
+    """
+    test_client, _, _ = client
+    test_client.post(
+        "/documents",
+        json={
+            "name": "mixed_policy.txt",
+            "text": (
+                "Laptop reimbursement is capped at eight hundred dollars per "
+                "employee per year for approved business use equipment "
+                "purchases only please note.\n\n"
+                "Office parking passes are issued by the facilities team "
+                "upon request and must be renewed annually every single "
+                "year without fail always."
+            ),
+        },
+    )
+
+    response = test_client.post(
+        "/answer",
+        json={"question": "laptop reimbursement limit", "top_k": 1},
+    )
+
+    body = response.json()
+    assert len(body["citations"]) == 1
+    assert "1_chunk_0" in body["citations"]       # the laptop chunk - expected
+    assert "1_chunk_1" not in body["citations"]   # the parking chunk - must never leak in
+    
+    
 def test_invalid_document_id_is_handled(client):
     """4. Invalid document ID is handled - treated as no context, not an error."""
     test_client, _, provider = client
