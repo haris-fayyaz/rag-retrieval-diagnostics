@@ -60,6 +60,7 @@ def test_top_k_respected_after_threshold_filtering():
     filtered = [c for c in result if c.score >= 0.05]
     assert len(filtered) <= 2
     
+@pytest.mark.integration    
 def test_semantic_retrieval_returns_relevant_chunks():
     """Test semantic retrieval returns relevant chunks."""
     service = SemanticRetrievalService()
@@ -118,7 +119,7 @@ def test_score_distribution():
     assert dist.max_answerable() == 0.8
     assert dist.max_unanswerable() == 0.3
     
-    
+@pytest.mark.integration    
 def test_hybrid_retriever_works():
     """Test hybrid retriever mode."""
     from app.services.retrieval import get_retriever
@@ -130,6 +131,7 @@ def test_hybrid_retriever_works():
     result = retriever.retrieve("laptop reimbursement", chunks, top_k=2, min_score=0.0)
     assert len(result) <= 2
 
+@pytest.mark.integration
 def test_hybrid_merges_duplicate_chunks():
     """Test hybrid merges chunks from both retrievers."""
     from app.services.retrieval import get_retriever
@@ -141,7 +143,7 @@ def test_hybrid_merges_duplicate_chunks():
     # Should return 1 chunk (not duplicated from both retrievers)
     assert len(result) == 1
     
-
+@pytest.mark.integration
 def test_hybrid_respects_top_k():
     """Test hybrid respects top_k limit."""
     from app.services.retrieval import get_retriever
