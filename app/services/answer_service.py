@@ -5,48 +5,13 @@ from app.database.repositories.interface import DocumentRepository
 from app.llm.exceptions import LLMPermanentError, LLMTemporaryError
 from app.llm.provider import LLMProvider
 from app.models import AnswerChunkRef, AnswerRequest, AnswerResponse, AnswerMetadata
-from app.services.retrieval import get_retriever
 
+from app.services.retrieval import get_retriever
+from app.services.prompt_builder import build_prompt
 
 logger = get_logger()
 
 NO_CONTEXT_MESSAGE = "No relevant information was found in the selected documents."
-
-# Fixed instructions prepended to every prompt - keeps the model grounded
-# to only the supplied context. {example_id} is filled in per-request with
-# a real chunk_id from the current retrieval (see _build_prompt) - a
-# hardcoded example like "[doc_2_chunk_3]" taught the model to invent a
-# "doc_" prefix that doesn't match our actual "{document_id}_chunk_{n}"
-# scheme (e.g. "1_chunk_0"), even though it never affected correctness
-# since citations are computed from retrieved chunks, not parsed from
-# the model's text.
-GROUNDING_INSTRUCTIONS_TEMPLATE = (
-    "You must answer only from the supplied context.\n"
-    "If the answer is not present, say that the available documents do not "
-    "contain the answer.\n"
-    "Cite supporting chunks using their IDs, for example:\n"
-    "[{example_id}]"
-)
-
-
-def _build_prompt(question: str, retrieved_chunks: list) -> str:
-    """Assemble the grounded prompt from only the chunks retrieval returned
-    (never all stored chunks) - each chunk tagged with its ID so the model
-    can cite it back."""
-    context_blocks = [
-        f"[{chunk.chunk_id}]\n{chunk.text_preview}" for chunk in retrieved_chunks
-    ]
-    context = "\n\n".join(context_blocks)
-
-    instructions = GROUNDING_INSTRUCTIONS_TEMPLATE.format(
-        example_id=retrieved_chunks[0].chunk_id
-    )
-
-    return (
-        f"{instructions}\n\n"
-        f"Context:\n{context}\n\n"
-        f"Question:\n{question}"
-    )
 
 
 def _generate_with_retry(provider: LLMProvider, prompt: str, request_id: str,) -> str:
@@ -166,7 +131,7 @@ def generate_answer(
             ),
         )
 
-    prompt = _build_prompt(request.question, retrieved)
+    prompt = build_prompt(request.question, retrieved)
 
     generation_start = time.perf_counter()
     answer = _generate_with_retry(provider, prompt, request_id)  # LLMProviderError propagates to the endpoint
