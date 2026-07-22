@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.database.models import ChunkORM, DocumentORM
 from app.database.session import make_engine
-from app.models import Chunk, DocumentResponse
+from app.models import Chunk, DocumentResponse, ReindexResponse
 
 
 class SQLiteDocumentRepository:
@@ -43,7 +43,7 @@ class SQLiteDocumentRepository:
 
         with self.SessionLocal() as session:
             try:
-                document = DocumentORM(name=name)
+                document = DocumentORM(name=name, original_text=text)
                 session.add(document)
                 # flush (not commit) assigns document.id via the DB's
                 # autoincrement, without ending the transaction - so the
@@ -102,6 +102,51 @@ class SQLiteDocumentRepository:
             for document in query.all():
                 chunks.extend(self._to_chunks(document))
             return chunks
+        
+        
+    def reindex_document(self, document_id: str, chunker) -> ReindexResponse:
+        with self.SessionLocal() as session:
+            document = self._get_document_orm(session, document_id)
+            if document is None:
+                raise ValueError(f"Document '{document_id}' not found")
+            if not document.original_text:
+                raise ValueError(
+                    f"Document '{document_id}' has no saved original text "
+                    "and cannot be re-indexed - it was created before "
+                    "original_text was persisted. Re-upload it instead."
+                )
+
+            previous_chunk_count = len(document.chunks)
+
+            try:
+                # Build the new chunks FIRST, before touching any existing
+                # row. If the chunker raises, we exit here with nothing
+                # deleted yet - existing chunks are untouched.
+                new_chunks = chunker(document.original_text, str(document.id), document.name)
+
+                # Delete old chunks and add new ones inside the same
+                # uncommitted transaction. If anything below raises before
+                # commit(), the rollback in `except` undoes the deletes
+                # too - old chunks come back exactly as they were.
+                for old_chunk in list(document.chunks):
+                    session.delete(old_chunk)
+                session.flush()
+
+                for index, chunk in enumerate(new_chunks):
+                    session.add(
+                        ChunkORM(document_id=document.id, chunk_index=index, text=chunk.text_preview)
+                    )
+
+                session.commit()
+                return ReindexResponse(
+                    document_id=str(document.id),
+                    previous_chunk_count=previous_chunk_count,
+                    new_chunk_count=len(new_chunks),
+                )
+            except Exception:
+                session.rollback()
+                raise
+
 
     # -- internal helpers -------------------------------------------------
 
