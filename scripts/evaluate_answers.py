@@ -140,7 +140,10 @@ def run_evaluation(use_fake: bool = False) -> list:
     print(f"Cases to run: {len(data['cases'])}")
     print("=" * 100)
 
-    results = [run_case(case, repo, provider, id_map) for case in data["cases"]]
+    results = []
+    for i, case in enumerate(data["cases"], start=1):
+        print(f"Running case {i}/{len(data['cases'])}: {case['question'][:60]}...", flush=True)
+        results.append(run_case(case, repo, provider, id_map))
     print_report(results)
     return results
 
