@@ -118,7 +118,7 @@ def print_report(results: list) -> None:
     for r in results:
         case = r["case"]
         print(f"\n[{case['id']}] {case['category']}")
-        print(f"  Question:                   {case['question']}")
+        print(f"  Question:                    {case['question']}")
         print(f"  Should answer?               {case['should_answer']}")
         print(f"  Did answer?                  {r['did_answer']}")
         print(f"  Expected documents:          {case['expected_documents']}")
@@ -142,9 +142,13 @@ def run_evaluation(use_fake: bool = False) -> list:
 
     results = []
     for i, case in enumerate(data["cases"], start=1):
-        print(f"Running case {i}/{len(data['cases'])}: {case['question'][:60]}...", flush=True)
-        results.append(run_case(case, repo, provider, id_map))
-    print_report(results)
+        print(f"\n\nRunning case {i}/{len(data['cases'])}: {case['question'][:60]}...", flush=True)
+
+        result = run_case(case, repo, provider, id_map)
+        results.append(result)
+
+        print_report([result])   # Print only the current result
+        
     return results
 
 
