@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI, HTTPException
 import uuid
 from app.models import (
     DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse,
-    AnswerRequest, AnswerResponse,
+    AnswerRequest, AnswerResponse, ReindexResponse,
 )
 from app.database.repositories.interface import DocumentRepository
 from app.database.repositories.sqlite_repository import SQLiteDocumentRepository
@@ -81,6 +81,10 @@ def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_rep
     # regression test covering this.
     return repo.create_document_with_chunks(doc.name, doc.text, chunk_text)
 
+"""
+    # Previous Implementation, Not Required
+"""
+"""
     # Store document
     response = repo.add_document(doc.name, doc.text)
 
@@ -91,13 +95,33 @@ def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_rep
     # Update chunk count
     response.chunk_count = len(chunks)
     return response
-
+"""
 
 
 @app.get("/documents", response_model=list[DocumentResponse])
 def list_documents(repo: DocumentRepository = Depends(get_repository)):
     """List all stored documents."""
     return repo.list_documents()
+
+@app.post("/documents/{document_id}/reindex", response_model=ReindexResponse)
+def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_repository)):
+    """
+    Re-chunk a document's saved original text using the current chunking
+    configuration (CHUNK_SIZE/CHUNK_OVERLAP), replacing its existing
+    chunks in one transaction. Use this after changing chunk config, or
+    to apply a chunking fix to a document uploaded under an older version.
+
+    404 if the document doesn't exist. 400 if it exists but has no saved
+    original_text (uploaded before that field existed - must be
+    re-uploaded, not re-indexed, since the source text was never stored).
+    """
+    if repo.get_document(document_id) is None:
+        raise HTTPException(status_code=404, detail=f"Document '{document_id}' not found")
+
+    try:
+        return repo.reindex_document(document_id, chunk_text)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 @app.post("/ask", response_model=AskResponse)
 def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository)):
