@@ -16,8 +16,8 @@ answer-generation layer on top.
 - **Resilience** — configurable timeout, limited automatic retries on transient LLM failures only
 - **Observability** — request tracing (`request_id`) and per-stage timing on every `/answer` call, structured JSON logs
 - **Retrieval evaluation** — automated script scoring retrieval quality against a labeled question set
+- **Groundedness & prompt-injection evaluation** — manual evaluation harness against a real LLM, checking whether answers stay grounded in retrieved context and resist instructions hidden inside documents
 - **CI** — lint, tests, migration validation, and retrieval evaluation on every push
-
 ## Tech Stack
 
 Python 3.12+ · FastAPI · SQLAlchemy 2.x · Alembic · scikit-learn (TF-IDF) · sentence-transformers (semantic) · pytest · ruff
@@ -205,6 +205,7 @@ reach the LLM step at all).
 
 - Only chunks returned by retrieval are sent to the LLM — never the full document store.
 - Each chunk is tagged with its ID in the prompt (`[1_chunk_0]`), and the model is instructed to cite by ID and to say so if the context doesn't contain the answer.
+- Retrieved chunks are wrapped in explicit `<untrusted_context>` tags (built by `app/services/prompt_builder.py`), with instructions telling the model that text inside the tags is data to read, never a command to obey. This defends against prompt injection - a malicious or compromised document containing text like "ignore previous instructions" is still just data to the model, not a command.
 - `citations` is computed from the chunks actually retrieved, not parsed from the model's text — this keeps citations reliable regardless of how the model phrases its answer.
 - If no chunk clears `min_score`, the LLM is never called. The response returns `answer: null` with an explanatory `message`:
 ```json
@@ -274,10 +275,39 @@ Scores retrieval quality (top-1 accuracy, recall@k) against a labeled
 question set in `eval/eval_questions.json`. Supports `tfidf`, `semantic`,
 and `hybrid` modes. See `eval/retrieval_comparison.md` for prior findings.
 
+## Groundedness and Prompt-Injection Evaluation
+
+Checks whether `/answer` stays grounded in retrieved context, refuses
+when it shouldn't answer, and resists instructions hidden inside
+retrieved documents (prompt injection, prompt-leak attempts).
+
+```bash
+# Smoke test - proves the harness itself runs, NOT a real groundedness result
+python -m scripts.evaluate_answers --fake
+
+# Real evaluation - requires Ollama running locally (see "Manual testing
+# with a real model" above)
+python -m scripts.evaluate_answers
+```
+
+The script seeds `eval/answer_eval_cases.json` (11 cases covering direct
+lookups, multi-chunk answers, unsupported questions, conflicting sources,
+prompt injection, and prompt-leak attempts) into a scratch SQLite DB, runs
+each through the real `/answer` pipeline, and prints a report table for
+manual review. **No LLM is used as a judge** - every result is read and
+classified by hand, per the project's evaluation standard.
+
+Full results, per-case classification, and root-cause analysis (retrieval
+vs. generation failures) are in `eval/groundedness_report.md`. Headline
+finding: the hardened prompt (`app/services/prompt_builder.py`) reduces
+prompt-injection risk but does not eliminate it - one of two tested
+injection attempts still succeeded. See the report for details.
+
 ## Architecture Notes
 
 - **Repository pattern**: `app/database/repositories/interface.py` defines the `DocumentRepository` protocol; `sqlite_repository.py` is the only implementation. The API and services depend solely on the protocol.
 - **LLM provider pattern**: `app/llm/provider.py` defines the `LLMProvider` protocol. `FakeLLMProvider` (tests/CI) and `OllamaLLMProvider` (local, real) both implement it; `answer_service.py` depends only on the interface.
+- **Prompt hardening**: `app/services/prompt_builder.py` is the single place that builds the `/answer` prompt, kept separate from `answer_service.py` so its safety properties (untrusted-context framing, groundedness rules, refusal permission) can be unit-tested in isolation (`tests/test_prompt_builder.py`) without a DB or a real LLM.
 - **Exception hierarchy**: `app/llm/exceptions.py` distinguishes retryable (`LLMTemporaryError`, `LLMTimeoutError`) from non-retryable (`LLMPermanentError`) provider failures - this is what lets retry logic be type-driven instead of string-matching error messages.
 - **Config**: `app/core/config.py` centralizes all environment variable reads into one `Settings` object, instead of scattered `os.environ.get()` calls.
 - **Logging**: `app/core/logging.py` provides structured JSON logging via a `log_event()` helper with an explicit keyword-only signature - callers can't accidentally log a whole object that might contain sensitive content.
