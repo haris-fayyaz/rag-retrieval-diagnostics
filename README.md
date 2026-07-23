@@ -57,6 +57,8 @@ cp .env.example .env
 | `LLM_TIMEOUT_SECONDS` | `30` | Max time to wait for a single provider call before it's treated as a timeout (retryable) |
 | `LLM_MAX_RETRIES` | `1` | Additional attempts after the first on a *temporary* failure (timeout, connection error). Never retries validation errors, no-context, or permanent failures. Total attempts = 1 + this value, always bounded — never retries indefinitely |
 | `LLM_API_KEY` | *(unused)* | Reserved for a future hosted API provider |
+| `CHUNK_SIZE` | `800` | Max characters per chunk. Must be > 0 |
+| `CHUNK_OVERLAP` | `100` | Characters of trailing context carried into the next chunk. Must be >= 0 and < `CHUNK_SIZE` |
 
 **Note:** these are plain `os.environ` reads — the app does not auto-load
 `.env`. Export the variables in your shell before starting the server if
@@ -140,6 +142,7 @@ content by accident.
 | `GET /health` | Health check |
 | `POST /documents` | Add a document (chunked and persisted atomically) |
 | `GET /documents` | List stored documents |
+| `POST /documents/{document_id}/reindex` | Re-chunk a document's saved original text with the current `CHUNK_SIZE`/`CHUNK_OVERLAP`, replacing its chunks in one transaction |
 | `POST /ask` | Retrieval debug — returns raw scored chunks, no generation |
 | `POST /answer` | Grounded question answering — returns a generated answer with citations |
 
