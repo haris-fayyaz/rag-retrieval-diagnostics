@@ -259,7 +259,15 @@ pytest
 ```
 
 Automated tests use `FakeLLMProvider` — no network calls, no API key,
-and no Ollama dependency. CI never requires a real model.
+and no Ollama dependency. CI never requires a real model. Semantic and
+hybrid retrieval tests need Hugging Face access to download an embedding
+model, so they're marked `@pytest.mark.integration` and excluded from
+the default run (see `pytest.ini`). Run them explicitly when you have
+network access:
+
+```bash
+pytest -m integration
+```
 
 Coverage includes: document/chunk persistence, transactional
 create-with-chunks (no orphaned documents on failure), retrieval over
