@@ -1,6 +1,6 @@
 from typing import List, Optional, Protocol
 
-from app.models import Chunk, DocumentResponse
+from app.models import Chunk, DocumentResponse, ReindexResponse
 
 
 class DocumentRepository(Protocol):
@@ -43,3 +43,19 @@ class DocumentRepository(Protocol):
     def get_chunks(self, document_ids: Optional[List[str]] = None) -> List[Chunk]:
         """Return chunks for the given document_ids, or all chunks if document_ids is None."""
         ...
+
+    def reindex_document(self, document_id: str, chunker) -> ReindexResponse:
+        """
+        Re-chunk a document's saved original_text with the current chunker
+        and replace its existing chunks, in one transaction.
+
+        Raises ValueError if the document doesn't exist, or if it has no
+        original_text saved (documents created before this field existed
+        must be re-uploaded, not just re-indexed - the source text was
+        never stored for them). On any failure, the existing chunks are
+        left completely unchanged - nothing is deleted until the new
+        chunks are ready to replace them in the same transaction.
+        """
+        ...
+        
+    

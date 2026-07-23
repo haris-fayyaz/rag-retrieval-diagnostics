@@ -26,6 +26,20 @@ class Settings:
         # Resilience: timeout and retry behavior for provider calls
         self.llm_timeout_seconds = float(os.environ.get("LLM_TIMEOUT_SECONDS", "30"))
         self.llm_max_retries = int(os.environ.get("LLM_MAX_RETRIES", "1"))
+        
+        # Chunking: max chars per chunk, and overlap carried into the next
+        # chunk (see chunking_service.py for how these are applied).
+        self.chunk_size = int(os.environ.get("CHUNK_SIZE", "800"))
+        self.chunk_overlap = int(os.environ.get("CHUNK_OVERLAP", "100"))
+
+        if self.chunk_size <= 0:
+            raise ValueError(f"CHUNK_SIZE must be > 0, got {self.chunk_size}")
+        if self.chunk_overlap < 0:
+            raise ValueError(f"CHUNK_OVERLAP must be >= 0, got {self.chunk_overlap}")
+        if self.chunk_overlap >= self.chunk_size:
+            raise ValueError(
+                f"CHUNK_OVERLAP ({self.chunk_overlap}) must be < CHUNK_SIZE ({self.chunk_size})"
+            )
 
 
 # Module-level singleton, built once at import time from the process's

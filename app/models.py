@@ -10,6 +10,11 @@ class DocumentResponse(BaseModel):
     name: str
     chunk_count: int
 
+class ReindexResponse(BaseModel):
+    document_id: str
+    previous_chunk_count: int
+    new_chunk_count: int
+
 class Chunk(BaseModel):
     document_id: str
     document_name: str
