@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import List, Optional
+from datetime import datetime
 
 class DocumentCreate(BaseModel):
     name: str
@@ -14,6 +15,26 @@ class ReindexResponse(BaseModel):
     document_id: str
     previous_chunk_count: int
     new_chunk_count: int
+
+class AnswerRunResponse(BaseModel):
+    """One stored audit record for a past /answer call. Mirrors
+    AnswerRunORM, but with retrieved_chunk_ids/citations deserialized
+    back into real lists instead of the JSON-text they're stored as."""
+    request_id: str
+    question: str
+    answer: Optional[str] = None
+    status: str  # "success" | "no_context" | "provider_error"
+    retrieval_mode: str
+    top_k: int
+    min_score: float
+    provider: str
+    model: Optional[str] = None
+    retrieved_chunk_ids: List[str]
+    citations: List[str]
+    retrieval_ms: Optional[float] = None
+    generation_ms: Optional[float] = None
+    total_ms: Optional[float] = None
+    created_at: datetime
 
 class Chunk(BaseModel):
     document_id: str

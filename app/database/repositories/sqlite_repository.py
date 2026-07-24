@@ -1,10 +1,11 @@
+import json
 from typing import Dict, List, Optional
 
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.database.models import ChunkORM, DocumentORM
+from app.database.models import AnswerRunORM, ChunkORM, DocumentORM
 from app.database.session import make_engine
-from app.models import Chunk, DocumentResponse, ReindexResponse
+from app.models import AnswerRunResponse, Chunk, DocumentResponse, ReindexResponse
 
 
 class SQLiteDocumentRepository:
@@ -147,7 +148,69 @@ class SQLiteDocumentRepository:
                 session.rollback()
                 raise
 
+    def save_answer_run(
+        self,
+        request_id: str,
+        question: str,
+        answer: Optional[str],
+        status: str,
+        retrieval_mode: str,
+        top_k: int,
+        min_score: float,
+        provider: str,
+        model: Optional[str],
+        retrieved_chunk_ids: List[str],
+        citations: List[str],
+        retrieval_ms: Optional[float],
+        generation_ms: Optional[float],
+        total_ms: Optional[float],
+    ) -> None:
+        with self.SessionLocal() as session:
+            session.add(
+                AnswerRunORM(
+                    request_id=request_id,
+                    question=question,
+                    answer=answer,
+                    status=status,
+                    retrieval_mode=retrieval_mode,
+                    top_k=top_k,
+                    min_score=min_score,
+                    provider=provider,
+                    model=model,
+                    retrieved_chunk_ids=json.dumps(retrieved_chunk_ids),
+                    citations=json.dumps(citations),
+                    retrieval_ms=retrieval_ms,
+                    generation_ms=generation_ms,
+                    total_ms=total_ms,
+                )
+            )
+            session.commit()
 
+    def get_answer_run(self, request_id: str) -> Optional[AnswerRunResponse]:
+        with self.SessionLocal() as session:
+            run = session.get(AnswerRunORM, request_id)
+            if run is None:
+                return None
+            return AnswerRunResponse(
+                request_id=run.request_id,
+                question=run.question,
+                answer=run.answer,
+                status=run.status,
+                retrieval_mode=run.retrieval_mode,
+                top_k=run.top_k,
+                min_score=run.min_score,
+                provider=run.provider,
+                model=run.model,
+                retrieved_chunk_ids=json.loads(run.retrieved_chunk_ids),
+                citations=json.loads(run.citations),
+                retrieval_ms=run.retrieval_ms,
+                generation_ms=run.generation_ms,
+                total_ms=run.total_ms,
+                created_at=run.created_at,
+            )
+            
+            
+            
     # -- internal helpers -------------------------------------------------
 
     @staticmethod

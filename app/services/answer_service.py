@@ -70,6 +70,19 @@ def _provider_name(provider: LLMProvider) -> str:
     class_name = type(provider).__name__
     return class_name.removesuffix("LLMProvider").lower() or class_name.lower()
 
+def _record_audit(repo: DocumentRepository, request_id: str, **fields) -> None:
+    """
+    Best-effort audit write. Deliberately swallows any exception - a
+    broken audit write (e.g. a locked DB file) must never turn a
+    successful /answer call into a failure, per the task's requirement
+    that "audit persistence should not change the existing API response
+    behavior". Failures are logged so they're still visible, just not
+    surfaced to the caller.
+    """
+    try:
+        repo.save_answer_run(request_id=request_id, **fields)
+    except Exception as e:
+        log_event(logger, "audit_write_failed", request_id=request_id, error_type=type(e).__name__)
 
 def generate_answer(
     request: AnswerRequest,
@@ -117,6 +130,14 @@ def generate_answer(
 
     if not retrieved:
         log_event(logger, "no_context_found", request_id=request_id, retrieval_mode=request.retrieval_mode)
+        no_context_total_ms = (time.perf_counter() - total_start) * 1000
+        _record_audit(
+            repo, request_id, question=request.question, answer=None, status="no_context",
+            retrieval_mode=request.retrieval_mode, top_k=request.top_k, min_score=request.min_score,
+            provider=provider_name, model=getattr(provider, "model", None),
+            retrieved_chunk_ids=[], citations=[],
+            retrieval_ms=retrieval_ms, generation_ms=None, total_ms=no_context_total_ms,
+        )
         return AnswerResponse(
             request_id=request_id,
             question=request.question,
@@ -124,7 +145,7 @@ def generate_answer(
             metadata=AnswerMetadata(
                 retrieval_ms=retrieval_ms,
                 generation_ms=None,  # LLM was never called
-                total_ms=(time.perf_counter() - total_start) * 1000,
+                total_ms=no_context_total_ms,
                 retrieved_chunk_count=0,
                 retrieval_mode=request.retrieval_mode,
                 provider=provider_name,
@@ -134,7 +155,18 @@ def generate_answer(
     prompt = build_prompt(request.question, retrieved)
 
     generation_start = time.perf_counter()
-    answer = _generate_with_retry(provider, prompt, request_id)  # LLMProviderError propagates to the endpoint
+    try:
+        answer = _generate_with_retry(provider, prompt, request_id)  # LLMProviderError propagates to the endpoint
+    except Exception:
+        _record_audit(
+            repo, request_id, question=request.question, answer=None, status="provider_error",
+            retrieval_mode=request.retrieval_mode, top_k=request.top_k, min_score=request.min_score,
+            provider=provider_name, model=getattr(provider, "model", None),
+            retrieved_chunk_ids=[chunk.chunk_id for chunk in retrieved], citations=[],
+            retrieval_ms=retrieval_ms, generation_ms=(time.perf_counter() - generation_start) * 1000,
+            total_ms=(time.perf_counter() - total_start) * 1000,
+        )
+        raise
     generation_ms = (time.perf_counter() - generation_start) * 1000
 
     # Citations = every chunk actually sent as context. We ground strictly
@@ -146,6 +178,13 @@ def generate_answer(
         logger, "answer_completed", request_id=request_id, retrieval_mode=request.retrieval_mode,
         retrieved_chunk_count=len(retrieved), retrieval_ms=retrieval_ms,
         generation_ms=generation_ms, total_ms=total_ms,
+    )
+    _record_audit(
+        repo, request_id, question=request.question, answer=answer, status="success",
+        retrieval_mode=request.retrieval_mode, top_k=request.top_k, min_score=request.min_score,
+        provider=provider_name, model=getattr(provider, "model", None),
+        retrieved_chunk_ids=[chunk.chunk_id for chunk in retrieved], citations=citations,
+        retrieval_ms=retrieval_ms, generation_ms=generation_ms, total_ms=total_ms,
     )
 
     return AnswerResponse(

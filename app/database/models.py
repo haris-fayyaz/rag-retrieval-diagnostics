@@ -50,3 +50,44 @@ class ChunkORM(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
 
     document: Mapped["DocumentORM"] = relationship(back_populates="chunks")
+
+
+class AnswerRunORM(Base):
+    """
+    One audit record per /answer call (maps to the 'answer_runs' table).
+
+    Deliberately has NO foreign key to documents/chunks - an audit record
+    must survive even if the underlying document is later deleted or
+    re-indexed. request_id is the primary key since every lookup
+    (GET /answer-runs/{request_id}) is by that ID, never by a separate
+    surrogate key.
+
+    retrieved_chunk_ids and citations are stored as JSON-encoded text
+    (simple lists of chunk_id strings) rather than a separate join table -
+    they're write-once, read-whole, never queried/filtered individually,
+    so a normalized table would add complexity with no real benefit here.
+
+    Does NOT store: the full prompt, API keys, or full document content -
+    only IDs, the question, the final answer, and timing/status metadata.
+    """
+
+    __tablename__ = "answer_runs"
+
+    request_id: Mapped[str] = mapped_column(String, primary_key=True)
+    question: Mapped[str] = mapped_column(Text, nullable=False)
+    answer: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # "success" | "no_context" | "provider_error"
+    status: Mapped[str] = mapped_column(String, nullable=False)
+    retrieval_mode: Mapped[str] = mapped_column(String, nullable=False)
+    top_k: Mapped[int] = mapped_column(nullable=False)
+    min_score: Mapped[float] = mapped_column(nullable=False)
+    provider: Mapped[str] = mapped_column(String, nullable=False)
+    model: Mapped[str | None] = mapped_column(String, nullable=True)
+    retrieved_chunk_ids: Mapped[str] = mapped_column(Text, nullable=False)  # JSON list
+    citations: Mapped[str] = mapped_column(Text, nullable=False)  # JSON list
+    retrieval_ms: Mapped[float | None] = mapped_column(nullable=True)
+    generation_ms: Mapped[float | None] = mapped_column(nullable=True)
+    total_ms: Mapped[float | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc)
+    )
