@@ -37,6 +37,17 @@ DOCUMENT_TEXT = (
     "All equipment must be approved by IT manager before purchase."
 )
 
+# Harder scenario: mirrors case 4 from the groundedness eval (Task 17) -
+# multiple documents give genuinely different numbers for a similar
+# question. Included so this script can produce evidence on a case that
+# actually failed before, not just an easy single-fact lookup.
+CONFLICTING_QUESTION = "How many days does expense reimbursement take to process?"
+CONFLICTING_DOCUMENTS = {
+    "hr_policy.txt": "HR Policy. Expense reimbursement for approved business travel is processed within 5 working days.",
+    "it_policy.txt": "IT Policy. Reimbursement for approved software is processed within 10 days.",
+    "finance_policy.txt": "Finance Policy. Approval process takes 3-5 business days.",
+}
+
 
 def make_scratch_repo() -> SQLiteDocumentRepository:
     tmp_dir = tempfile.mkdtemp(prefix="repro_check_")
@@ -56,8 +67,8 @@ def build_provider(use_fake: bool):
     )
 
 
-def run_once(repo, provider, run_number: int) -> dict:
-    request = AnswerRequest(question=QUESTION, top_k=3, min_score=0.1, retrieval_mode="tfidf")
+def run_once(repo, provider, question: str, run_number: int) -> dict:
+    request = AnswerRequest(question=question, top_k=3, min_score=0.1, retrieval_mode="tfidf")
     response = generate_answer(request, repo, provider, request_id=f"repro-{run_number}")
     return {
         "run": run_number,
@@ -68,17 +79,24 @@ def run_once(repo, provider, run_number: int) -> dict:
     }
 
 
-def check_reproducibility(num_runs: int, use_fake: bool) -> None:
+def check_reproducibility(num_runs: int, use_fake: bool, scenario: str) -> None:
     repo = make_scratch_repo()
-    repo.create_document_with_chunks("it_policy.txt", DOCUMENT_TEXT, chunk_text)
+    if scenario == "conflicting":
+        question = CONFLICTING_QUESTION
+        for name, text in CONFLICTING_DOCUMENTS.items():
+            repo.create_document_with_chunks(name, text, chunk_text)
+    else:
+        question = QUESTION
+        repo.create_document_with_chunks("it_policy.txt", DOCUMENT_TEXT, chunk_text)
     provider = build_provider(use_fake)
 
+    print(f"Scenario: {scenario}")
     print(f"Provider: {type(provider).__name__}")
-    print(f"Question: {QUESTION!r}")
+    print(f"Question: {question!r}")
     print(f"Runs: {num_runs}")
     print("=" * 100)
 
-    results = [run_once(repo, provider, i + 1) for i in range(num_runs)]
+    results = [run_once(repo, provider, question, i + 1) for i in range(num_runs)]
 
     for r in results:
         print(f"\n[run {r['run']}]")
@@ -144,6 +162,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Check /answer reproducibility across repeated runs.")
     parser.add_argument("--runs", type=int, default=5, help="Number of repeated runs (default: 5)")
     parser.add_argument("--fake", action="store_true", help="Use FakeLLMProvider instead of real Ollama")
+    parser.add_argument(
+        "--scenario", choices=["simple", "conflicting"], default="simple",
+        help="'simple': one doc, one clear fact. 'conflicting': 3 docs with genuinely "
+             "different numbers for a similar question - mirrors Task 17's case 4.",
+    )
     args = parser.parse_args()
 
-    check_reproducibility(args.runs, args.fake)
+    check_reproducibility(args.runs, args.fake, args.scenario)
