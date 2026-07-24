@@ -17,6 +17,7 @@ answer-generation layer on top.
 - **Observability** — request tracing (`request_id`) and per-stage timing on every `/answer` call, structured JSON logs
 - **Retrieval evaluation** — automated script scoring retrieval quality against a labeled question set
 - **Groundedness & prompt-injection evaluation** — manual evaluation harness against a real LLM, checking whether answers stay grounded in retrieved context and resist instructions hidden inside documents
+- **Answer audit trail** — every `/answer` call (success, no-context, or provider failure) is persisted to `answer_runs` and retrievable via `GET /answer-runs/{request_id}`, without changing `/answer`'s own response behavior
 - **CI** — lint, tests, migration validation, and retrieval evaluation on every push
 ## Tech Stack
 
@@ -145,6 +146,7 @@ content by accident.
 | `POST /documents/{document_id}/reindex` | Re-chunk a document's saved original text with the current `CHUNK_SIZE`/`CHUNK_OVERLAP`, replacing its chunks in one transaction |
 | `POST /ask` | Retrieval debug — returns raw scored chunks, no generation |
 | `POST /answer` | Grounded question answering — returns a generated answer with citations |
+| `GET /answer-runs/{request_id}` | Fetch the stored audit record for a past `/answer` call — question, retrieved chunks, answer, status, timing. 404 if unknown |
 
 ### `/ask` vs `/answer`
 
@@ -252,6 +254,54 @@ Retries are capped by `LLM_MAX_RETRIES` and can never loop indefinitely —
 the retry count is fixed before the first attempt is made, not decided
 dynamically. Once attempts are exhausted, the endpoint returns `502`.
 
+## Answer Audit Trail
+
+Every `/answer` call is persisted to the `answer_runs` table — regardless
+of outcome (success, no relevant context, or provider failure) — so past
+executions can be inspected later without needing to reproduce them.
+
+Stored per run: `request_id`, `question`, `answer` (nullable), `status`
+(`success`/`no_context`/`provider_error`), `retrieval_mode`, `top_k`,
+`min_score`, `provider`, `model`, `retrieved_chunk_ids`, `citations`,
+and `retrieval_ms`/`generation_ms`/`total_ms` timing.
+
+**Not stored:** the full prompt, API keys, or full document content —
+only IDs, the question, the final answer, and metadata.
+
+**The write is best-effort and defensive** (`_record_audit` in
+`answer_service.py`): if persisting the audit record itself fails (e.g. a
+locked DB file), the failure is logged but never raised — a broken audit
+write can never turn a successful `/answer` call into an error response.
+This is what "audit persistence should not change the existing API
+response behavior" means in practice.
+
+Fetch a past run:
+```bash
+curl http://localhost:8000/answer-runs/4ea9c1b2-6f3a-4e9d-9c2a-8f1e2d3c4b5a
+```
+Returns `404` if `request_id` was never recorded.
+
+### Reproducibility check
+
+```bash
+python -m scripts.check_reproducibility            # simple single-fact question, real Ollama
+python -m scripts.check_reproducibility --fake      # smoke test with FakeLLMProvider
+python -m scripts.check_reproducibility --scenario conflicting   # harder: conflicting sources
+```
+
+Runs the same question 5x against identical documents and settings, then
+reports **retrieval stability** (chunk IDs + scores) and **generation
+stability** (answer text + citations) as two separate Yes/No verdicts —
+so answer variation is never misattributed to retrieval unless the chunk
+IDs or scores actually changed.
+
+Findings: `eval/reproducibility_findings.md`. Headline result: retrieval
+is fully deterministic (identical chunk IDs/scores to exact float
+precision across every run tested); generation is not — on a simple
+question this only affects wording, but on a conflicting-source question
+the model gave a different final number across different runs from the
+exact same retrieved evidence.
+
 ## Testing
 
 ```bash
@@ -273,8 +323,11 @@ Coverage includes: document/chunk persistence, transactional
 create-with-chunks (no orphaned documents on failure), retrieval over
 persisted data, `/answer` grounding and citations, no-context rejection,
 retrieval selectivity across `top_k`/`min_score`, provider-failure
-handling, request tracing, timing metadata, and retry/timeout behavior
-(`tests/test_resilience.py`).
+handling, request tracing, timing metadata, retry/timeout behavior
+(`tests/test_resilience.py`), chunking correctness (no truncation,
+overlap, config validation — `tests/test_chunking.py`), re-indexing
+(`tests/test_reindex.py`), and the audit trail — all 3 outcomes recorded,
+fetchable by `request_id`, unknown IDs return 404 (`tests/test_audit.py`).
 
 ## Retrieval Evaluation
 
@@ -323,3 +376,4 @@ injection attempts still succeeded. See the report for details.
 - **Config**: `app/core/config.py` centralizes all environment variable reads into one `Settings` object, instead of scattered `os.environ.get()` calls.
 - **Logging**: `app/core/logging.py` provides structured JSON logging via a `log_event()` helper with an explicit keyword-only signature - callers can't accidentally log a whole object that might contain sensitive content.
 - **Migrations**: Alembic manages schema changes under `alembic/versions/`. Never edit the schema by hand — add a new migration.
+- **Audit trail**: `answer_runs` (via `AnswerRunORM`) has no foreign key to documents/chunks by design - a record must remain readable even after the source document is deleted or re-indexed. Writing it is best-effort (`_record_audit` in `answer_service.py`) - failures are logged, never raised, so audit persistence can't affect `/answer`'s actual response.
