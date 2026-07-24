@@ -1,6 +1,6 @@
 from typing import List, Optional, Protocol
 
-from app.models import Chunk, DocumentResponse, ReindexResponse
+from app.models import Chunk, DocumentResponse, ReindexResponse, AnswerRunResponse
 
 
 class DocumentRepository(Protocol):
@@ -56,6 +56,32 @@ class DocumentRepository(Protocol):
         left completely unchanged - nothing is deleted until the new
         chunks are ready to replace them in the same transaction.
         """
+        ...
+
+    def save_answer_run(
+        self,
+        request_id: str,
+        question: str,
+        answer: Optional[str],
+        status: str,
+        retrieval_mode: str,
+        top_k: int,
+        min_score: float,
+        provider: str,
+        model: Optional[str],
+        retrieved_chunk_ids: List[str],
+        citations: List[str],
+        retrieval_ms: Optional[float],
+        generation_ms: Optional[float],
+        total_ms: Optional[float],
+    ) -> None:
+        """Persist one audit record for a completed /answer call (any
+        outcome: success, no_context, or provider_error)."""
+        ...
+
+    def get_answer_run(self, request_id: str) -> Optional[AnswerRunResponse]:
+        """Return the stored audit record for request_id, or None if no
+        such record exists."""
         ...
         
     
