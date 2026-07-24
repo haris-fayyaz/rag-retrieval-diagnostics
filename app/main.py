@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI, HTTPException
 import uuid
 from app.models import (
     DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse,
-    AnswerRequest, AnswerResponse, ReindexResponse,
+    AnswerRequest, AnswerResponse, ReindexResponse, AnswerRunResponse,
 )
 from app.database.repositories.interface import DocumentRepository
 from app.database.repositories.sqlite_repository import SQLiteDocumentRepository
@@ -103,6 +103,7 @@ def list_documents(repo: DocumentRepository = Depends(get_repository)):
     """List all stored documents."""
     return repo.list_documents()
 
+
 @app.post("/documents/{document_id}/reindex", response_model=ReindexResponse)
 def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_repository)):
     """
@@ -122,6 +123,7 @@ def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_re
         return repo.reindex_document(document_id, chunk_text)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 @app.post("/ask", response_model=AskResponse)
 def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository)):
@@ -189,6 +191,20 @@ def answer(
             status_code=502,
             detail={"request_id": request_id, "error": f"LLM provider failed: {e}"},
         )
+
+
+@app.get("/answer-runs/{request_id}", response_model=AnswerRunResponse)
+def get_answer_run(request_id: str, repo: DocumentRepository = Depends(get_repository)):
+    """
+    Fetch the stored audit record for a past /answer call - what was
+    asked, what was retrieved, what was answered (or why it wasn't), and
+    timing. 404 if request_id was never recorded (unknown ID, or an
+    audit write that itself failed - see _record_audit's docstring).
+    """
+    run = repo.get_answer_run(request_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail=f"No answer run found for request_id '{request_id}'")
+    return run
 
 
 if __name__ == "__main__":
