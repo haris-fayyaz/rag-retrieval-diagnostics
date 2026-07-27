@@ -48,6 +48,7 @@ def get_repository() -> DocumentRepository:
     return _repository
 
 
+
 # Provider selected via settings.llm_provider (LLM_PROVIDER env var) -
 # defaults to the fake, so the app runs (and CI passes) with zero LLM
 # configuration. Set LLM_PROVIDER=ollama locally (see .env.example) to
@@ -66,6 +67,7 @@ _llm_provider = _build_llm_provider()
 def get_llm_provider() -> LLMProvider:
     """FastAPI dependency - overridden in tests with a controllable fake."""
     return _llm_provider
+
 
 _bearer_scheme = HTTPBearer(auto_error=False)
  
@@ -86,6 +88,7 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(_bearer
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
+
 @app.get("/")
 def main_app():
     return "Hello From FastAPI"
@@ -98,7 +101,7 @@ def health():
 @app.post(
     "/auth/token",
     response_model=TokenResponse,
-    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
 )
 def login(credentials: TokenRequest):
     """
@@ -115,8 +118,11 @@ def login(credentials: TokenRequest):
     token = create_access_token(credentials.username)
     return TokenResponse(access_token=token, expires_in=settings.jwt_expire_minutes * 60)
 
-@app.post("/documents", response_model=DocumentResponse,
-    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],)
+@app.post(
+    "/documents", 
+    response_model=DocumentResponse, 
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+    )
 def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Add a new document and chunk it.
@@ -154,15 +160,21 @@ def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_rep
 """
 
 
-@app.get("/documents", response_model=list[DocumentResponse],
-    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],)
+@app.get(
+    "/documents", 
+    response_model=list[DocumentResponse],
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+)
 def list_documents(repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """List all stored documents."""
     return repo.list_documents()
 
 
-@app.post("/documents/{document_id}/reindex", response_model=ReindexResponse,
-    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],)
+@app.post(
+    "/documents/{document_id}/reindex",
+    response_model=ReindexResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+)
 def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Re-chunk a document's saved original text using the current chunking
@@ -183,8 +195,11 @@ def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_re
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/ask", response_model=AskResponse,
-    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],)
+@app.post(
+    "/ask", 
+    response_model=AskResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+)
 def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Retrieve relevant chunks for a question.
@@ -217,8 +232,11 @@ def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository),
     )
 
 
-@app.post("/answer", response_model=AnswerResponse,
-    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],)
+@app.post(
+    "/answer", 
+    response_model=AnswerResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+)
 def answer(
     request: AnswerRequest,
     repo: DocumentRepository = Depends(get_repository),
@@ -254,8 +272,11 @@ def answer(
         )
 
 
-@app.get("/answer-runs/{request_id}", response_model=AnswerRunResponse,
-    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],)
+@app.get(
+    "/answer-runs/{request_id}", 
+    response_model=AnswerRunResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+)
 def get_answer_run(request_id: str, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Fetch the stored audit record for a past /answer call - what was
