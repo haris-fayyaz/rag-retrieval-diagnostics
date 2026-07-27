@@ -2,7 +2,7 @@ import time
 from app.core.config import settings
 from app.core.logging import get_logger, log_event
 from app.database.repositories.interface import DocumentRepository
-from app.llm.exceptions import LLMPermanentError, LLMTemporaryError
+from app.llm.exceptions import LLMPermanentError, LLMTemporaryError, LLMProviderError
 from app.llm.provider import LLMProvider
 from app.models import AnswerChunkRef, AnswerRequest, AnswerResponse, AnswerMetadata
 
@@ -157,7 +157,7 @@ def generate_answer(
     generation_start = time.perf_counter()
     try:
         answer = _generate_with_retry(provider, prompt, request_id)  # LLMProviderError propagates to the endpoint
-    except Exception:
+    except LLMProviderError:
         _record_audit(
             repo, request_id, question=request.question, answer=None, status="provider_error",
             retrieval_mode=request.retrieval_mode, top_k=request.top_k, min_score=request.min_score,

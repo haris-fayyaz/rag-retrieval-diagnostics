@@ -122,13 +122,16 @@ def test_fake_provider_runs_remain_deterministic(client):
     test_client, repo, _ = client
     _add_policy_doc(test_client)
 
-    r1 = test_client.post("/answer", json={"question": "laptop reimbursement"})
-    r2 = test_client.post("/answer", json={"question": "laptop reimbursement"})
+    runs = [
+        repo.get_answer_run(
+            test_client.post("/answer", json={"question": "laptop reimbursement"}).json()["request_id"]
+        )
+        for _ in range(5)
+    ]
 
-    run1 = repo.get_answer_run(r1.json()["request_id"])
-    run2 = repo.get_answer_run(r2.json()["request_id"])
-
-    assert run1.answer == run2.answer
-    assert run1.retrieved_chunk_ids == run2.retrieved_chunk_ids
-    assert run1.citations == run2.citations
-    assert run1.status == run2.status == "success"
+    first = runs[0]
+    for run in runs[1:]:
+        assert run.answer == first.answer
+        assert run.retrieved_chunk_ids == first.retrieved_chunk_ids
+        assert run.citations == first.citations
+        assert run.status == first.status == "success"
