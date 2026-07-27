@@ -11,6 +11,7 @@ from app.models import (
     TokenRequest, TokenResponse,
 )
 from app.core.security import verify_password, create_access_token, decode_access_token
+from app.core.rate_limit import rate_limit
 from app.database.repositories.interface import DocumentRepository
 from app.database.repositories.sqlite_repository import SQLiteDocumentRepository
 from app.llm.fake_provider import FakeLLMProvider
