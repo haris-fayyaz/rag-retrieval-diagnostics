@@ -60,6 +60,20 @@ cp .env.example .env
 | `LLM_API_KEY` | *(unused)* | Reserved for a future hosted API provider |
 | `CHUNK_SIZE` | `800` | Max characters per chunk. Must be > 0 |
 | `CHUNK_OVERLAP` | `100` | Characters of trailing context carried into the next chunk. Must be >= 0 and < `CHUNK_SIZE` |
+| `APP_USERNAME` | *(empty)* | Single hardcoded login username. Login always fails until this is set |
+| `APP_PASSWORD_HASH` | *(empty)* | bcrypt hash of the login password, see "Authentication" below for how to generate one |
+| `JWT_SECRET` | *(random per process)* | Signing secret for issued tokens. Unset means a random secret each restart, so all previously issued tokens stop working on restart. Set a real value for anything beyond a quick local test |
+| `JWT_ALGORITHM` | `HS256` | JWT signing algorithm |
+| `JWT_EXPIRE_MINUTES` | `30` | Token lifetime, in minutes |
+| `RATE_LIMIT_AUTH_TOKEN` | `5` | Max `/auth/token` requests per minute, per IP |
+| `RATE_LIMIT_ANSWER` | `10` | Max `/answer` requests per minute, per authenticated user |
+| `RATE_LIMIT_DOCUMENTS_POST` | `5` | Max `POST /documents` requests per minute, per authenticated user |
+| `RATE_LIMIT_DEFAULT` | `60` | Max requests per minute, per authenticated user, for every other protected endpoint |
+| `MAX_DOCUMENT_NAME_LENGTH` | `255` | Max characters allowed in a document name |
+| `MAX_DOCUMENT_CHARACTERS` | `100000` | Max characters allowed in a document's text |
+| `MAX_QUESTION_CHARACTERS` | `1000` | Max characters allowed in a question |
+| `MAX_TOP_K` | `20` | Max value accepted for `top_k` |
+| `CORS_ALLOWED_ORIGINS` | *(empty)* | Comma-separated allowed origins, e.g. `http://localhost:3000,http://localhost:5173`. Empty means no cross-origin requests allowed |
 
 **Note:** these are plain `os.environ` reads — the app does not auto-load
 `.env`. Export the variables in your shell before starting the server if
@@ -140,13 +154,18 @@ content by accident.
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /health` | Health check |
-| `POST /documents` | Add a document (chunked and persisted atomically) |
-| `GET /documents` | List stored documents |
-| `POST /documents/{document_id}/reindex` | Re-chunk a document's saved original text with the current `CHUNK_SIZE`/`CHUNK_OVERLAP`, replacing its chunks in one transaction |
-| `POST /ask` | Retrieval debug — returns raw scored chunks, no generation |
-| `POST /answer` | Grounded question answering — returns a generated answer with citations |
-| `GET /answer-runs/{request_id}` | Fetch the stored audit record for a past `/answer` call — question, retrieved chunks, answer, status, timing. 404 if unknown |
+| `POST /auth/token` | Public. Exchange configured credentials for a JWT |
+| `GET /health` | Health check, public |
+| `POST /documents` | Add a document (chunked and persisted atomically), requires a token |
+| `GET /documents` | List stored documents, requires a token |
+| `POST /documents/{document_id}/reindex` | Re-chunk a document's saved original text with the current `CHUNK_SIZE`/`CHUNK_OVERLAP`, replacing its chunks in one transaction, requires a token |
+| `POST /ask` | Retrieval debug, returns raw scored chunks, no generation, requires a token |
+| `POST /answer` | Grounded question answering, returns a generated answer with citations, requires a token |
+| `GET /answer-runs/{request_id}` | Fetch the stored audit record for a past `/answer` call, question, retrieved chunks, answer, status, timing. 404 if unknown, requires a token |
+
+Every endpoint except `POST /auth/token` and `GET /health` requires
+`Authorization: Bearer <token>`, see "Authentication and Rate
+Limiting" below.
 
 ### `/ask` vs `/answer`
 
@@ -253,6 +272,67 @@ Only genuinely transient LLM failures are retried:
 Retries are capped by `LLM_MAX_RETRIES` and can never loop indefinitely —
 the retry count is fixed before the first attempt is made, not decided
 dynamically. Once attempts are exhausted, the endpoint returns `502`.
+
+## Authentication and Rate Limiting
+
+Lightweight, single-user auth for this project, not a full account
+system, see "Known limitations" below.
+
+### Get a token
+
+1. Generate a password hash once, offline:
+```bash
+python -c "from app.core.security import hash_password; print(hash_password('yourpassword'))"
+```
+2. Set `APP_USERNAME`, `APP_PASSWORD_HASH`, and `JWT_SECRET` (see the
+   env var table above).
+3. Request a token:
+```bash
+curl -X POST http://localhost:8000/auth/token \
+  -H "Content-Type: application/json" \
+  -d '{"username": "yourusername", "password": "yourpassword"}'
+```
+Response:
+```json
+{"access_token": "...", "token_type": "bearer", "expires_in": 1800}
+```
+
+### Call a protected endpoint
+
+```bash
+curl http://localhost:8000/documents \
+  -H "Authorization: Bearer <access_token>"
+```
+Missing, malformed, or expired tokens all return `401` with the same
+message (doesn't reveal which check failed).
+
+### Rate limits
+
+| Endpoint | Limit | Keyed by |
+|---|---|---|
+| `POST /auth/token` | 5/min | client IP |
+| `POST /answer` | 10/min | authenticated user |
+| `POST /documents` | 5/min | authenticated user |
+| Everything else protected | 60/min | authenticated user |
+
+Exceeding a limit returns `429` with a `Retry-After` header. Failed
+login attempts count toward the `/auth/token` limit too.
+
+**In-memory only:** counts live in the running process's memory, reset
+on restart, and aren't shared across processes. Fine for this
+single-process local project, wrong for a real multi-instance
+deployment, since each instance tracks its own counts and the real
+combined rate could be N times the configured limit. A shared backend
+(Redis, most commonly) is required for that case.
+
+### Known limitations
+
+- Single hardcoded user, no signup, no per-user permissions
+- No refresh tokens, once a token expires request a new one from `/auth/token`
+- No token revocation, a leaked token stays valid until it expires
+- `JWT_SECRET` unset means a random secret per process restart, all
+  previously issued tokens stop working on restart, don't rely on
+  this for anything beyond a quick local test
 
 ## Answer Audit Trail
 
