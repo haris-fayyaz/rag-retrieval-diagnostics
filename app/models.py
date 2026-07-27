@@ -106,3 +106,14 @@ class AnswerResponse(BaseModel):
     retrieved_chunks: List[AnswerChunkRef] = []
     message: Optional[str] = None
     metadata: Optional[AnswerMetadata] = None
+    
+    
+class TokenRequest(BaseModel):
+    """Credentials for POST /auth/token. Single hardcoded user, no signup."""
+    username: str
+    password: str
+ 
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # seconds, mirrors JWT_EXPIRE_MINUTES
