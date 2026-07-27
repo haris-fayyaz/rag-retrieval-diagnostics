@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from app.database.models import Base
 from app.database.repositories.sqlite_repository import SQLiteDocumentRepository
 from app.llm.fake_provider import FakeLLMProvider
-from app.main import app, get_llm_provider, get_repository
+from app.main import app, get_llm_provider, get_repository, get_current_user
 
 
 @pytest.fixture
@@ -16,7 +16,8 @@ def client(tmp_path):
 
     app.dependency_overrides[get_repository] = lambda: repo
     app.dependency_overrides[get_llm_provider] = lambda: provider
-
+    app.dependency_overrides[get_current_user] = lambda: "test_user"  # bypass auth, not what this file tests
+    
     yield TestClient(app), repo, provider
 
     app.dependency_overrides.clear()
