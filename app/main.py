@@ -2,13 +2,15 @@ from app.core.config import settings
 from app.core.logging import configure_logging
 from app.llm.ollama_provider import OllamaLLMProvider
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+import jwt
 import uuid
 from app.models import (
     DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse,
     AnswerRequest, AnswerResponse, ReindexResponse, AnswerRunResponse,
     TokenRequest, TokenResponse,
 )
-from app.core.security import verify_password, create_access_token
+from app.core.security import verify_password, create_access_token, decode_access_token
 from app.database.repositories.interface import DocumentRepository
 from app.database.repositories.sqlite_repository import SQLiteDocumentRepository
 from app.llm.fake_provider import FakeLLMProvider
@@ -51,6 +53,23 @@ def get_llm_provider() -> LLMProvider:
     """FastAPI dependency - overridden in tests with a controllable fake."""
     return _llm_provider
 
+_bearer_scheme = HTTPBearer(auto_error=False)
+ 
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme)) -> str:
+    """
+    FastAPI dependency - require a valid JWT, returns the username (sub).
+    - auto_error=False on the scheme: a missing header reaches us as
+      None instead of FastAPI/HTTPBearer's default 403, so we control
+      the status code and return 401 for every failure mode.
+    - Missing, malformed, expired, bad-signature: all the same 401 with
+      the same message, on purpose (don't leak which check failed).
+    """
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        return decode_access_token(credentials.credentials)
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 
 @app.get("/")
@@ -78,7 +97,7 @@ def login(credentials: TokenRequest):
     return TokenResponse(access_token=token, expires_in=settings.jwt_expire_minutes * 60)
 
 @app.post("/documents", response_model=DocumentResponse)
-def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_repository)):
+def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Add a new document and chunk it.
     
@@ -116,13 +135,13 @@ def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_rep
 
 
 @app.get("/documents", response_model=list[DocumentResponse])
-def list_documents(repo: DocumentRepository = Depends(get_repository)):
+def list_documents(repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """List all stored documents."""
     return repo.list_documents()
 
 
 @app.post("/documents/{document_id}/reindex", response_model=ReindexResponse)
-def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_repository)):
+def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Re-chunk a document's saved original text using the current chunking
     configuration (CHUNK_SIZE/CHUNK_OVERLAP), replacing its existing
@@ -143,7 +162,7 @@ def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_re
 
 
 @app.post("/ask", response_model=AskResponse)
-def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository)):
+def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Retrieve relevant chunks for a question.
     
@@ -180,6 +199,7 @@ def answer(
     request: AnswerRequest,
     repo: DocumentRepository = Depends(get_repository),
     provider: LLMProvider = Depends(get_llm_provider),
+    user: str = Depends(get_current_user),
 ):
     """
     User-facing question-answering endpoint.
@@ -211,7 +231,7 @@ def answer(
 
 
 @app.get("/answer-runs/{request_id}", response_model=AnswerRunResponse)
-def get_answer_run(request_id: str, repo: DocumentRepository = Depends(get_repository)):
+def get_answer_run(request_id: str, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Fetch the stored audit record for a past /answer call - what was
     asked, what was retrieved, what was answered (or why it wasn't), and
