@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from fastapi.testclient import TestClient
 
@@ -29,13 +31,13 @@ def client(tmp_path):
     app.dependency_overrides.clear()
 
 
-def _headers(username: str) -> dict:
-    return {"Authorization": f"Bearer {create_access_token(username)}"}
+def _headers(username: str = None) -> dict:
+    return {"Authorization": f"Bearer {create_access_token(username or f'user_{uuid.uuid4().hex[:8]}')}"}
 
 
 def test_rate_limit_returns_429(client):
     """7. Exceeding the configured limit returns 429 with Retry-After."""
-    headers = _headers("rate_limit_test_user")
+    headers = _headers()
     limit = 5  # POST /documents default (RATE_LIMIT_DOCUMENTS_POST)
 
     for i in range(limit):
@@ -54,8 +56,8 @@ def test_rate_limit_returns_429(client):
 def test_different_users_limited_independently(client):
     """8. Different authenticated identities have independent counters."""
     limit = 5
-    headers_a = _headers("user_a")
-    headers_b = _headers("user_b")
+    headers_a = _headers()
+    headers_b = _headers()
 
     for i in range(limit):
         assert client.post(
