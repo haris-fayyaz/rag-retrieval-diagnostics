@@ -101,7 +101,7 @@ def health():
 @app.post(
     "/auth/token",
     response_model=TokenResponse,
-    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],
 )
 def login(credentials: TokenRequest):
     """
