@@ -3,6 +3,7 @@ from app.core.logging import configure_logging
 from app.llm.ollama_provider import OllamaLLMProvider
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.middleware.cors import CORSMiddleware
 import jwt
 import uuid
 from app.models import (
@@ -24,6 +25,19 @@ from app.services.retrieval import get_retriever
 configure_logging()  # must run before anything logs - see app/core/logging.py
 app = FastAPI(title="RAG Retrieval Diagnostics")
 
+# allow_credentials=False on purpose: auth is a Bearer token the caller
+# sets explicitly, not a cookie, so CORS "credentials" mode (which only
+# governs cookies/browser-managed auth) isn't needed. Side effect: the
+# wildcard-origin-plus-credentials misconfiguration the task warns
+# about can't happen here, since credentials are always off.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Single repository instance backing the running app (points at the
 # SQLite file resolved by app.db.session, or DATABASE_URL if set).
 _repository = SQLiteDocumentRepository()
@@ -32,7 +46,6 @@ _repository = SQLiteDocumentRepository()
 def get_repository() -> DocumentRepository:
     """FastAPI dependency - overridden in tests to point at a temp DB."""
     return _repository
-
 
 
 # Provider selected via settings.llm_provider (LLM_PROVIDER env var) -
