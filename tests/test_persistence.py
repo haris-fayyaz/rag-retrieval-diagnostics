@@ -2,7 +2,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.database.models import Base
-from app.main import app, get_repository
+from app.main import app, get_repository, get_current_user
 from app.models import Chunk
 from app.database.repositories.sqlite_repository import SQLiteDocumentRepository
 
@@ -22,6 +22,7 @@ def client(tmp_path):
     Base.metadata.create_all(repo.engine)
 
     app.dependency_overrides[get_repository] = lambda: repo
+    app.dependency_overrides[get_current_user] = lambda: "test_user"  # bypass auth, not what this file tests
     yield TestClient(app), repo, db_url
     app.dependency_overrides.clear()
 
@@ -109,7 +110,7 @@ def test_empty_document_is_rejected(client):
     test_client, repo, _ = client
 
     response = test_client.post("/documents", json={"name": "empty.txt", "text": "   "})
-    assert response.status_code == 400
+    assert response.status_code == 422
 
     with pytest.raises(ValueError):
         repo.add_document("empty.txt", "   ")

@@ -1,10 +1,59 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import List, Optional
 from datetime import datetime
+
+from app.core.config import settings
+ 
+ 
+def _validate_question(value: str) -> str:
+    """Shared by AskRequest/AnswerRequest - kept as a plain function
+    (not a shared base class) since the two models stay uncoupled on
+    purpose, see AnswerRequest's docstring below."""
+    if not value.strip():
+        raise ValueError("question cannot be empty")
+    if len(value) > settings.max_question_characters:
+        raise ValueError(f"question exceeds {settings.max_question_characters} characters")
+    return value
+ 
+ 
+def _validate_top_k(value: int) -> int:
+    if not 1 <= value <= settings.max_top_k:
+        raise ValueError(f"top_k must be between 1 and {settings.max_top_k}")
+    return value
+ 
+ 
+def _validate_min_score(value: float) -> float:
+    if not 0.0 <= value <= 1.0:
+        raise ValueError("min_score must be between 0.0 and 1.0")
+    return value
+ 
+ 
+def _validate_document_ids(value: Optional[List[str]]) -> Optional[List[str]]:
+    if value is not None and len(value) != len(set(value)):
+        raise ValueError("document_ids contains duplicates")
+    return value
 
 class DocumentCreate(BaseModel):
     name: str
     text: str
+    
+    @field_validator("name")
+    @classmethod
+    def check_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("name cannot be empty")
+        if len(value) > settings.max_document_name_length:
+            raise ValueError(f"name exceeds {settings.max_document_name_length} characters")
+        return value
+ 
+    @field_validator("text")
+    @classmethod
+    def check_text(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("text cannot be empty")
+        if len(value) > settings.max_document_characters:
+            raise ValueError(f"text exceeds {settings.max_document_characters} characters")
+        return value
 
 class DocumentResponse(BaseModel):
     document_id: str
@@ -49,6 +98,26 @@ class AskRequest(BaseModel):
     document_ids: Optional[List[str]] = None
     min_score: float = 0.0
     retrieval_mode: str = "tfidf"  # "tfidf" or "semantic"
+    
+    @field_validator("question")
+    @classmethod
+    def check_question(cls, value: str) -> str:
+        return _validate_question(value)
+ 
+    @field_validator("top_k")
+    @classmethod
+    def check_top_k(cls, value: int) -> int:
+        return _validate_top_k(value)
+ 
+    @field_validator("min_score")
+    @classmethod
+    def check_min_score(cls, value: float) -> float:
+        return _validate_min_score(value)
+ 
+    @field_validator("document_ids")
+    @classmethod
+    def check_document_ids(cls, value: Optional[List[str]]) -> Optional[List[str]]:
+        return _validate_document_ids(value)
 
 class AskResponse(BaseModel):
     question: str
@@ -73,6 +142,26 @@ class AnswerRequest(BaseModel):
     document_ids: Optional[List[str]] = None
     min_score: float = 0.0
     retrieval_mode: str = "tfidf"  # "tfidf", "semantic", or "hybrid"
+    
+    @field_validator("question")
+    @classmethod
+    def check_question(cls, value: str) -> str:
+        return _validate_question(value)
+ 
+    @field_validator("top_k")
+    @classmethod
+    def check_top_k(cls, value: int) -> int:
+        return _validate_top_k(value)
+ 
+    @field_validator("min_score")
+    @classmethod
+    def check_min_score(cls, value: float) -> float:
+        return _validate_min_score(value)
+ 
+    @field_validator("document_ids")
+    @classmethod
+    def check_document_ids(cls, value: Optional[List[str]]) -> Optional[List[str]]:
+        return _validate_document_ids(value)
 
 class AnswerChunkRef(BaseModel):
     """Slim source reference for /answer responses - just enough to
@@ -106,3 +195,13 @@ class AnswerResponse(BaseModel):
     retrieved_chunks: List[AnswerChunkRef] = []
     message: Optional[str] = None
     metadata: Optional[AnswerMetadata] = None
+    
+class TokenRequest(BaseModel):
+    """Credentials for POST /auth/token. Single hardcoded user, no signup."""
+    username: str
+    password: str
+ 
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int  # seconds, mirrors JWT_EXPIRE_MINUTES

@@ -2,11 +2,17 @@ from app.core.config import settings
 from app.core.logging import configure_logging
 from app.llm.ollama_provider import OllamaLLMProvider
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fastapi.middleware.cors import CORSMiddleware
+import jwt
 import uuid
 from app.models import (
     DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse,
     AnswerRequest, AnswerResponse, ReindexResponse, AnswerRunResponse,
+    TokenRequest, TokenResponse,
 )
+from app.core.security import verify_password, create_access_token, decode_access_token
+from app.core.rate_limit import rate_limit
 from app.database.repositories.interface import DocumentRepository
 from app.database.repositories.sqlite_repository import SQLiteDocumentRepository
 from app.llm.fake_provider import FakeLLMProvider
@@ -18,6 +24,19 @@ from app.services.retrieval import get_retriever
 
 configure_logging()  # must run before anything logs - see app/core/logging.py
 app = FastAPI(title="RAG Retrieval Diagnostics")
+
+# allow_credentials=False on purpose: auth is a Bearer token the caller
+# sets explicitly, not a cookie, so CORS "credentials" mode (which only
+# governs cookies/browser-managed auth) isn't needed. Side effect: the
+# wildcard-origin-plus-credentials misconfiguration the task warns
+# about can't happen here, since credentials are always off.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins,
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Single repository instance backing the running app (points at the
 # SQLite file resolved by app.db.session, or DATABASE_URL if set).
@@ -50,6 +69,25 @@ def get_llm_provider() -> LLMProvider:
     return _llm_provider
 
 
+_bearer_scheme = HTTPBearer(auto_error=False)
+ 
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme)) -> str:
+    """
+    FastAPI dependency - require a valid JWT, returns the username (sub).
+    - auto_error=False on the scheme: a missing header reaches us as
+      None instead of FastAPI/HTTPBearer's default 403, so we control
+      the status code and return 401 for every failure mode.
+    - Missing, malformed, expired, bad-signature: all the same 401 with
+      the same message, on purpose (don't leak which check failed).
+    """
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        return decode_access_token(credentials.credentials)
+    except jwt.PyJWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
 
 @app.get("/")
 def main_app():
@@ -60,8 +98,32 @@ def health():
     """Health check endpoint."""
     return {"status": "ok"}
 
-@app.post("/documents", response_model=DocumentResponse)
-def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_repository)):
+@app.post(
+    "/auth/token",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],
+)
+def login(credentials: TokenRequest):
+    """
+    Public endpoint - issues a JWT for the single configured user.
+    - Wrong username or wrong password: same 401, same message. Don't
+      reveal which one was wrong (no username-enumeration signal).
+    - verify_password fails closed on an unset/malformed APP_PASSWORD_HASH,
+      so misconfiguration blocks login instead of allowing it.
+    """
+    if credentials.username != settings.app_username or not verify_password(
+        credentials.password, settings.app_password_hash
+    ):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_access_token(credentials.username)
+    return TokenResponse(access_token=token, expires_in=settings.jwt_expire_minutes * 60)
+
+@app.post(
+    "/documents", 
+    response_model=DocumentResponse, 
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+    )
+def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Add a new document and chunk it.
     
@@ -98,14 +160,22 @@ def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_rep
 """
 
 
-@app.get("/documents", response_model=list[DocumentResponse])
-def list_documents(repo: DocumentRepository = Depends(get_repository)):
+@app.get(
+    "/documents", 
+    response_model=list[DocumentResponse],
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+)
+def list_documents(repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """List all stored documents."""
     return repo.list_documents()
 
 
-@app.post("/documents/{document_id}/reindex", response_model=ReindexResponse)
-def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_repository)):
+@app.post(
+    "/documents/{document_id}/reindex",
+    response_model=ReindexResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+)
+def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Re-chunk a document's saved original text using the current chunking
     configuration (CHUNK_SIZE/CHUNK_OVERLAP), replacing its existing
@@ -125,8 +195,12 @@ def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_re
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/ask", response_model=AskResponse)
-def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository)):
+@app.post(
+    "/ask", 
+    response_model=AskResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+)
+def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Retrieve relevant chunks for a question.
     
@@ -158,11 +232,16 @@ def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository))
     )
 
 
-@app.post("/answer", response_model=AnswerResponse)
+@app.post(
+    "/answer", 
+    response_model=AnswerResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+)
 def answer(
     request: AnswerRequest,
     repo: DocumentRepository = Depends(get_repository),
     provider: LLMProvider = Depends(get_llm_provider),
+    user: str = Depends(get_current_user),
 ):
     """
     User-facing question-answering endpoint.
@@ -193,8 +272,12 @@ def answer(
         )
 
 
-@app.get("/answer-runs/{request_id}", response_model=AnswerRunResponse)
-def get_answer_run(request_id: str, repo: DocumentRepository = Depends(get_repository)):
+@app.get(
+    "/answer-runs/{request_id}", 
+    response_model=AnswerRunResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+)
+def get_answer_run(request_id: str, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Fetch the stored audit record for a past /answer call - what was
     asked, what was retrieved, what was answered (or why it wasn't), and
