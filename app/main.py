@@ -6,7 +6,9 @@ import uuid
 from app.models import (
     DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse,
     AnswerRequest, AnswerResponse, ReindexResponse, AnswerRunResponse,
+    TokenRequest, TokenResponse,
 )
+from app.core.security import verify_password, create_access_token
 from app.database.repositories.interface import DocumentRepository
 from app.database.repositories.sqlite_repository import SQLiteDocumentRepository
 from app.llm.fake_provider import FakeLLMProvider
@@ -59,6 +61,21 @@ def main_app():
 def health():
     """Health check endpoint."""
     return {"status": "ok"}
+
+def login(credentials: TokenRequest):
+    """
+    Public endpoint - issues a JWT for the single configured user.
+    - Wrong username or wrong password: same 401, same message. Don't
+      reveal which one was wrong (no username-enumeration signal).
+    - verify_password fails closed on an unset/malformed APP_PASSWORD_HASH,
+      so misconfiguration blocks login instead of allowing it.
+    """
+    if credentials.username != settings.app_username or not verify_password(
+        credentials.password, settings.app_password_hash
+    ):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = create_access_token(credentials.username)
+    return TokenResponse(access_token=token, expires_in=settings.jwt_expire_minutes * 60)
 
 @app.post("/documents", response_model=DocumentResponse)
 def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_repository)):
