@@ -81,6 +81,11 @@ def health():
     """Health check endpoint."""
     return {"status": "ok"}
 
+@app.post(
+    "/auth/token",
+    response_model=TokenResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],
+)
 def login(credentials: TokenRequest):
     """
     Public endpoint - issues a JWT for the single configured user.
@@ -96,7 +101,8 @@ def login(credentials: TokenRequest):
     token = create_access_token(credentials.username)
     return TokenResponse(access_token=token, expires_in=settings.jwt_expire_minutes * 60)
 
-@app.post("/documents", response_model=DocumentResponse)
+@app.post("/documents", response_model=DocumentResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],)
 def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Add a new document and chunk it.
@@ -134,13 +140,15 @@ def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_rep
 """
 
 
-@app.get("/documents", response_model=list[DocumentResponse])
+@app.get("/documents", response_model=list[DocumentResponse],
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],)
 def list_documents(repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """List all stored documents."""
     return repo.list_documents()
 
 
-@app.post("/documents/{document_id}/reindex", response_model=ReindexResponse)
+@app.post("/documents/{document_id}/reindex", response_model=ReindexResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],)
 def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Re-chunk a document's saved original text using the current chunking
@@ -161,7 +169,8 @@ def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_re
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/ask", response_model=AskResponse)
+@app.post("/ask", response_model=AskResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],)
 def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Retrieve relevant chunks for a question.
@@ -194,7 +203,8 @@ def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository),
     )
 
 
-@app.post("/answer", response_model=AnswerResponse)
+@app.post("/answer", response_model=AnswerResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],)
 def answer(
     request: AnswerRequest,
     repo: DocumentRepository = Depends(get_repository),
@@ -230,7 +240,8 @@ def answer(
         )
 
 
-@app.get("/answer-runs/{request_id}", response_model=AnswerRunResponse)
+@app.get("/answer-runs/{request_id}", response_model=AnswerRunResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token))],)
 def get_answer_run(request_id: str, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
     """
     Fetch the stored audit record for a past /answer call - what was
