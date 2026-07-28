@@ -1,0 +1,72 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment files - never bake real secrets into the image.
+# .env.example is NOT excluded here since it's just placeholder text
+# and is occasionally useful to have available for reference in the image.
+.env
+.env.local
+.env.*.local
+
+# Database files - persisted via a named volume at runtime, not copied
+# from whatever happens to exist on the machine building the image.
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Python caches and build artifacts - regenerated as needed, dead
+# weight in a layer otherwise.
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info
+dist/
+build/
+.eggs/
+
+# Virtualenvs - the image installs its own dependencies inside the
+# container; a host venv copied in would be the wrong platform anyway.
+venv/
+env/
+ENV/
+.venv
+
+# IDE and editor files.
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test coverage / dev tooling output - not used at runtime.
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Docs builds.
+docs/_build/
+
+# Node/npm - no frontend in this project, kept as a safety net.
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# OS files.
+Thumbs.db
+
+# CI/dev-only files - irrelevant to what actually runs in the container.
+.github/
+Makefile
+
+# Dev-only content the running API never imports. Not required for
+# correctness, but keeps the image lean and matches "install only
+# required dependencies" in spirit, not just for pip packages.
+tests/
+eval/
+README.md
