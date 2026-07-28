@@ -41,3 +41,76 @@ jobs:
           python -m scripts.evaluate_retrieval --mode tfidf --min-score 0.10 --top-k 3
           python -m scripts.evaluate_retrieval --mode semantic --min-score 0.15 --top-k 3
           python -m scripts.evaluate_retrieval --mode hybrid --min-score 0.15 --top-k 3
+
+  docker-smoke-test:
+    runs-on: ubuntu-latest
+    needs: backend-checks
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t rag-api:ci .
+
+      - name: Generate a throwaway bcrypt hash for this run only
+        id: hash
+        run: |
+          HASH=$(docker run --rm --entrypoint python3 rag-api:ci -c "from app.core.security import hash_password; print(hash_password('ci_smoke_password'))")
+          echo "hash=$HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Start container (fake provider, throwaway credentials)
+        # The hash is passed through `env:` here, NOT inlined directly
+        # as ${{ steps.hash.outputs.hash }} into the script below.
+        # GitHub substitutes ${{ }} as raw text into the script BEFORE
+        # bash runs it - a bcrypt hash contains literal "$" characters
+        # (e.g. "$2b$12$..."), so text-substituting it straight into a
+        # double-quoted shell string makes bash re-parse "$2b", "$12"
+        # etc. as its own (empty/unset) variable expansions, silently
+        # corrupting the hash. Verified this exact corruption locally
+        # before writing it this way. Passing through env: and reading
+        # "$APP_PASSWORD_HASH" avoids the second round of parsing - the
+        # value is substituted once, as-is.
+        env:
+          APP_PASSWORD_HASH: ${{ steps.hash.outputs.hash }}
+        run: |
+          docker run -d --name rag-smoke \
+            -p 8000:8000 \
+            -e LLM_PROVIDER=fake \
+            -e APP_USERNAME=ci_smoke_user \
+            -e APP_PASSWORD_HASH="$APP_PASSWORD_HASH" \
+            -e JWT_SECRET=ci-smoke-test-secret-not-a-real-secret \
+            rag-api:ci
+
+      - name: Wait for the health check
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8000/health > /dev/null; then
+              echo "Container is healthy"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Container never became healthy" >&2
+          docker logs rag-smoke
+          exit 1
+
+      - name: Call GET /health
+        run: curl -sf http://localhost:8000/health
+
+      - name: Get a JWT and call a protected endpoint
+        run: |
+          TOKEN=$(curl -sf -X POST http://localhost:8000/auth/token \
+            -H "Content-Type: application/json" \
+            -d '{"username": "ci_smoke_user", "password": "ci_smoke_password"}' \
+            | python3 -c "import sys, json; print(json.load(sys.stdin)['access_token'])")
+          curl -sf http://localhost:8000/documents -H "Authorization: Bearer $TOKEN"
+
+      - name: Stop and remove container
+        # Runs even if an earlier step failed - a failed smoke test
+        # must never leave the container running on the runner.
+        if: always()
+        run: |
+          docker logs rag-smoke || true
+          docker stop rag-smoke || true
+          docker rm rag-smoke || true
