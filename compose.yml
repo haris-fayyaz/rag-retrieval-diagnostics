@@ -1,0 +1,57 @@
+# Local single-instance deployment. Not for production multi-instance
+# use as-is - the rate limiter is in-memory per process (see README),
+# so it wouldn't stay accurate across multiple replicas without a
+# shared backend like Redis.
+#
+# Quick start:
+#   cp .env.example .env
+#   # fill in APP_USERNAME / APP_PASSWORD_HASH / JWT_SECRET - see
+#   # .env.example for how to generate them, and the $$ escaping note
+#   docker compose up --build
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: rag-api
+    ports:
+      - "8000:8000"
+    # Loads every key=value pair in .env directly into the container's
+    # environment. Any literal "$" in a value (bcrypt hashes look like
+    # $2b$12$...) must be escaped as "$$" here, or Compose's own
+    # variable-interpolation pass will try to treat "$word" as a
+    # reference to another variable and silently blank it out. See
+    # .env.example for the escaped placeholder format.
+    env_file:
+      - .env
+    environment:
+      # Fixed to the volume mount below, not left to whatever's in
+      # .env - a DATABASE_URL pointing anywhere else would silently
+      # break persistence (the volume wouldn't be where the app writes).
+      DATABASE_URL: sqlite:////app/data/app.db
+      # Falls back to fake if LLM_PROVIDER isn't set in .env, but does
+      # NOT override a value that IS set there. A hardcoded
+      # `LLM_PROVIDER: fake` here would silently block switching to
+      # Ollama by editing .env alone - this way .env stays the single
+      # place that controls it, matching "pass configuration through
+      # environment variables."
+      LLM_PROVIDER: ${LLM_PROVIDER:-fake}
+    volumes:
+      # Bind mount to ./data - simple and inspectable for local dev.
+      # Note: on Linux hosts this directory is created by Docker as
+      # root by default and appuser (uid 1000) may not be able to
+      # write to it unless the host directory's ownership matches: run
+      # `mkdir -p data && sudo chown 1000:1000 data` once before first
+      # `docker compose up` if you hit a permission error on Linux. Not
+      # an issue on Docker Desktop (Mac/Windows).
+      - ./data:/app/data
+    healthcheck:
+      # Stdlib urllib, not curl - curl isn't installed in the image,
+      # no need to add a package just for this check.
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    restart: unless-stopped
