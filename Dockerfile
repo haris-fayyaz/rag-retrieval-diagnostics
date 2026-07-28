@@ -20,7 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # only re-runs the slow pip install) when requirements.txt itself
 # changes, not on every source edit.
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements.txt
 
 # Explicit copy list, not `COPY . .` - keeps the image to exactly what
 # the running app needs. .dockerignore backs this up as a second layer
