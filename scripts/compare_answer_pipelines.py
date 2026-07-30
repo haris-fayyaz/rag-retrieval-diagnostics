@@ -10,7 +10,11 @@ no Ollama) so this runs anywhere, same constraint as the default test
 suite. To compare against real Ollama output instead, set
 LLM_PROVIDER=ollama before running.
 """
+import sys
 import time
+from pathlib import Path
+ 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.chains.langchain_answer_chain import get_chat_model
 from app.core.config import settings
@@ -80,3 +84,4 @@ def run():
 
 if __name__ == "__main__":
     run()
+    
