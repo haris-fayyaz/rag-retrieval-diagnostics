@@ -30,8 +30,10 @@ COPY alembic ./alembic
 COPY alembic.ini .
 COPY app ./app
 COPY entrypoint.sh .
-
-RUN chmod +x /app/entrypoint.sh
+# Strip Windows CRLF line endings if present - protects against
+# Windows checkouts where core.autocrlf silently reintroduces \r,
+# which breaks `set -e` parsing inside the Linux container's sh.
+RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 # Non-root user - the app has no reason to run as root inside the
 # container.
