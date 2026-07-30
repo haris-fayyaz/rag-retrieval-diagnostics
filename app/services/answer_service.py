@@ -177,7 +177,8 @@ def generate_answer(
         no_context_total_ms = (time.perf_counter() - total_start) * 1000
         _record_audit(
             repo, request_id, question=request.question, answer=None, status="no_context",
-            retrieval_mode=request.retrieval_mode, top_k=request.top_k, min_score=request.min_score,
+            retrieval_mode=request.retrieval_mode, pipeline_mode=request.pipeline_mode,
+            top_k=request.top_k, min_score=request.min_score,
             provider=provider_name, model=model_name,
             retrieved_chunk_ids=[], citations=[],
             retrieval_ms=retrieval_ms, generation_ms=None, total_ms=no_context_total_ms,
@@ -241,7 +242,8 @@ def generate_answer(
     )
     _record_audit(
         repo, request_id, question=request.question, answer=answer, status="success",
-        retrieval_mode=request.retrieval_mode, top_k=request.top_k, min_score=request.min_score,
+        retrieval_mode=request.retrieval_mode, pipeline_mode=request.pipeline_mode,
+        top_k=request.top_k, min_score=request.min_score,
         provider=provider_name, model=model_name,
         retrieved_chunk_ids=[chunk.chunk_id for chunk in retrieved], citations=citations,
         retrieval_ms=retrieval_ms, generation_ms=generation_ms, total_ms=total_ms,
