@@ -78,6 +78,7 @@ class AnswerRunResponse(BaseModel):
     min_score: float
     provider: str
     model: Optional[str] = None
+    pipeline_mode: str  # "custom" | "langchain"
     retrieved_chunk_ids: List[str]
     citations: List[str]
     retrieval_ms: Optional[float] = None

@@ -219,7 +219,8 @@ def generate_answer(
     except Exception:
         _record_audit(
             repo, request_id, question=request.question, answer=None, status="provider_error",
-            retrieval_mode=request.retrieval_mode, top_k=request.top_k, min_score=request.min_score,
+            retrieval_mode=request.retrieval_mode, pipeline_mode=request.pipeline_mode,
+            top_k=request.top_k, min_score=request.min_score,
             provider=provider_name, model=model_name,
             retrieved_chunk_ids=[chunk.chunk_id for chunk in retrieved], citations=[],
             retrieval_ms=retrieval_ms, generation_ms=(time.perf_counter() - generation_start) * 1000,

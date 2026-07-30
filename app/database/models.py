@@ -78,6 +78,11 @@ class AnswerRunORM(Base):
     answer: Mapped[str | None] = mapped_column(Text, nullable=True)
     # "success" | "no_context" | "provider_error"
     status: Mapped[str] = mapped_column(String, nullable=False)
+    # "custom" | "langchain" - which pipeline generated this answer.
+    # Separate from `provider` ("fake"/"ollama" - which backend), so the
+    # comparison script can filter/group by pipeline independent of
+    # which model actually ran.
+    pipeline_mode: Mapped[str] = mapped_column(String, nullable=False, default="custom")
     retrieval_mode: Mapped[str] = mapped_column(String, nullable=False)
     top_k: Mapped[int] = mapped_column(nullable=False)
     min_score: Mapped[float] = mapped_column(nullable=False)
