@@ -1,5 +1,5 @@
 from pydantic import BaseModel, field_validator
-from typing import List, Optional
+from typing import List, Optional, Literal
 from datetime import datetime
 
 from app.core.config import settings
@@ -78,6 +78,7 @@ class AnswerRunResponse(BaseModel):
     min_score: float
     provider: str
     model: Optional[str] = None
+    pipeline_mode: str  # "custom" | "langchain"
     retrieved_chunk_ids: List[str]
     citations: List[str]
     retrieval_ms: Optional[float] = None
@@ -142,7 +143,14 @@ class AnswerRequest(BaseModel):
     document_ids: Optional[List[str]] = None
     min_score: float = 0.0
     retrieval_mode: str = "tfidf"  # "tfidf", "semantic", or "hybrid"
-    
+    # "custom" (default, existing hand-rolled prompt/provider path) or
+    # "langchain" (optional LCEL pipeline - see app/chains/). A Literal
+    # (not a plain str + manual check like retrieval_mode below) since
+    # this is a fixed two-value switch, not a registry lookup - pydantic
+    # rejects anything else with a 422 before the request body even
+    # reaches generate_answer, no custom validator needed.
+    pipeline_mode: Literal["custom", "langchain"] = "custom"
+
     @field_validator("question")
     @classmethod
     def check_question(cls, value: str) -> str:

@@ -65,6 +65,7 @@ class DocumentRepository(Protocol):
         answer: Optional[str],
         status: str,
         retrieval_mode: str,
+        pipeline_mode: str,
         top_k: int,
         min_score: float,
         provider: str,

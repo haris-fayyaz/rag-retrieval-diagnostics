@@ -4,6 +4,7 @@ from app.llm.ollama_provider import OllamaLLMProvider
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi.middleware.cors import CORSMiddleware
+from langchain_core.language_models.chat_models import BaseChatModel
 import jwt
 import uuid
 from app.models import (
@@ -18,6 +19,7 @@ from app.database.repositories.sqlite_repository import SQLiteDocumentRepository
 from app.llm.fake_provider import FakeLLMProvider
 from app.llm.exceptions import LLMProviderError
 from app.llm.provider import LLMProvider
+from app.chains.langchain_answer_chain import get_chat_model
 from app.services.answer_service import generate_answer
 from app.services.chunking_service import chunk_text
 from app.services.retrieval import get_retriever
@@ -67,6 +69,19 @@ _llm_provider = _build_llm_provider()
 def get_llm_provider() -> LLMProvider:
     """FastAPI dependency - overridden in tests with a controllable fake."""
     return _llm_provider
+
+
+# Same singleton-at-import-time pattern as _llm_provider above, switched
+# on the same LLM_PROVIDER setting - get_chat_model() itself decides
+# FakeListChatModel vs ChatOllama (see app/chains/langchain_answer_chain.py).
+# Built once regardless of whether any request actually uses
+# pipeline_mode="langchain" - same cost as the custom provider, no lazy
+# construction per request.
+_langchain_model = get_chat_model()
+
+def get_langchain_model() -> BaseChatModel:
+    """FastAPI dependency - overridden in tests with a controllable fake."""
+    return _langchain_model
 
 
 _bearer_scheme = HTTPBearer(auto_error=False)
@@ -241,6 +256,7 @@ def answer(
     request: AnswerRequest,
     repo: DocumentRepository = Depends(get_repository),
     provider: LLMProvider = Depends(get_llm_provider),
+    langchain_model: BaseChatModel = Depends(get_langchain_model),
     user: str = Depends(get_current_user),
 ):
     """
@@ -251,13 +267,19 @@ def answer(
     language answer with citations. All logic lives in answer_service;
     this endpoint only maps its exceptions to HTTP responses.
 
+    Both langchain_model and provider are always injected regardless of
+    request.pipeline_mode - each is a cheap singleton lookup (see
+    get_llm_provider/get_langchain_model above), not built per request,
+    so a "custom" request pays nothing extra for langchain_model being
+    present and unused.
+
     A request_id is generated here (not inside answer_service) so it's
     available even when generate_answer raises before building a
     response - every outcome (success, 400, 502) carries the same ID.
     """
     request_id = str(uuid.uuid4())
     try:
-        return generate_answer(request, repo, provider, request_id)
+        return generate_answer(request, repo, provider, langchain_model, request_id)
     except ValueError as e:
         # empty question or unsupported retrieval_mode
         raise HTTPException(
