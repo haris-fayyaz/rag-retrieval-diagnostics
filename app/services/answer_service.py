@@ -204,12 +204,14 @@ def generate_answer(
     # zero-arg callable so _call_with_retry doesn't need to know which
     # pipeline it's retrying.
     if request.pipeline_mode == "langchain":
-        call: Callable[[], str] = lambda: generate_answer_via_langchain(
-            langchain_model, request.question, retrieved
-        )
+        def call() -> str:
+            return generate_answer_via_langchain(langchain_model, request.question, retrieved)
     else:
         prompt = build_prompt(request.question, retrieved)
-        call = lambda: provider.generate(prompt)
+
+        def call() -> str:
+            return provider.generate(prompt)
+
 
     generation_start = time.perf_counter()
     try:
