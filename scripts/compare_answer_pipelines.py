@@ -62,7 +62,8 @@ def run():
         for mode in ("custom", "langchain"):
             req = AnswerRequest(question=question, pipeline_mode=mode)
             start = time.perf_counter()
-            resp = generate_answer(req, repo, provider, langchain_model, f"compare-{mode}")
+            # resp = generate_answer(req, repo, provider, langchain_model, f"compare-{mode}")
+            resp = generate_answer(req, repo, provider, request_id=f"compare-{mode}", langchain_model=langchain_model)
             elapsed_ms = (time.perf_counter() - start) * 1000
             row[mode] = {
                 "chunks": [c.chunk_id for c in resp.retrieved_chunks],
