@@ -279,7 +279,7 @@ def answer(
     """
     request_id = str(uuid.uuid4())
     try:
-        return generate_answer(request, repo, provider, langchain_model, request_id)
+        return generate_answer(request, repo, provider, request_id, langchain_model=langchain_model)
     except ValueError as e:
         # empty question or unsupported retrieval_mode
         raise HTTPException(
