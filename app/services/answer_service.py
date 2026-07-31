@@ -117,8 +117,8 @@ def generate_answer(
     request: AnswerRequest,
     repo: DocumentRepository,
     provider: LLMProvider,
-    langchain_model: BaseChatModel,
     request_id: str,
+    langchain_model: BaseChatModel | None = None,
 ) -> AnswerResponse:
     """
     Question -> retrieve -> reject if no chunks -> grounded prompt -> LLM -> answer.
