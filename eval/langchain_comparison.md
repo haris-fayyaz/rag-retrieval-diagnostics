@@ -33,6 +33,21 @@ Exception handling. `ChatOllama` raises `ollama.ResponseError` / raw `httpx` err
 **Is LangChain useful enough to retain as an optional mode?**
 Retain as optional, don't make it default. It doesn't currently do less work than the custom path for this project's scope, and it adds an exception-translation layer that has to be maintained. It's worth keeping because the abstraction pays off once things this project doesn't need yet show up: multiple retrievers behind one interface, structured output parsing, or swapping providers frequently. For a single retriever and a single string answer, it's overhead for its own sake.
 
+## Timing
+
+| Mode | Custom avg (ms) | LangChain avg (ms) | Overhead |
+|---|---|---|---|
+| Fake model (offline) | 17.1 | 41.5 | +24.4ms (2.4x) |
+| Real Ollama (qwen3:1.7b) | 42,657.7 | 39,298.4 | -3,359ms |
+
+Reading the real-Ollama row correctly: this is not "LangChain is faster." Per-case timing against the real model ranged from ~28s to ~60s, run to run, on the exact same pipeline - that variance is Ollama's own inference time, and it completely swamps any framework-level difference. At this scale the two pipelines are indistinguishable in practice.
+
+The fake-model row is the trustworthy signal for isolating LCEL's own overhead: composing the dict input, running through `ChatPromptTemplate`, and the `RunnableLambda` step add a real, consistent ~24ms per call versus the custom pipeline's direct `provider.generate(prompt)` call.
+
+Separately, not a pipeline difference: `qwen3:1.7b` supports a "thinking" mode (internal reasoning tokens before the final answer), which likely explains the 30-60s per-request latency seen against real Ollama - this affects both pipelines equally, same model, same host.
+
+## Challenges
+
 ## Challenges
 - `ChatOllama`'s exception surface isn't documented as clearly as `httpx`'s; had to read `ollama/_client.py` directly to find what it actually raises on connect failure vs HTTP error status.
 - `ChatPromptTemplate` treating every `{name}` in every message as a shared input namespace was surprising at first (e.g. `{example_id}` in the system prompt needing to come from the same `invoke()` dict as `context`/`question`).
