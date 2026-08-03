@@ -1,0 +1,9 @@
+Question                                      Custom Chunks        LangChain Chunks     Same Chunks  Same Citations Timing ms (C/L)   
+What is the laptop reimbursement limit?       ['1_chunk_0', '2_ch  ['1_chunk_0', '2_ch  True         True           46388.0/43775.2   
+How many paid leave days do employees get?    ['2_chunk_0', '1_ch  ['2_chunk_0', '1_ch  True         True           40234.4/34105.2   
+Do unused leave days carry over?              ['2_chunk_0', '1_ch  ['2_chunk_0', '1_ch  True         True           27229.2/26624.9   
+What security requirement applies to laptops  ['3_chunk_0', '1_ch  ['3_chunk_0', '1_ch  True         True           50141.2/38798.7   
+What is the capital of France?                ['1_chunk_0', '2_ch  ['1_chunk_0', '2_ch  True         True           28068.3/30018.1   
+
+Average timing - Custom: 38412.2ms, LangChain: 34664.4ms
+LangChain overhead: -3747.8ms (0.9x)

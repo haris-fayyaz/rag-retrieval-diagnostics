@@ -62,7 +62,8 @@ def run():
         for mode in ("custom", "langchain"):
             req = AnswerRequest(question=question, pipeline_mode=mode)
             start = time.perf_counter()
-            resp = generate_answer(req, repo, provider, langchain_model, f"compare-{mode}")
+            # resp = generate_answer(req, repo, provider, langchain_model, f"compare-{mode}")
+            resp = generate_answer(req, repo, provider, request_id=f"compare-{mode}", langchain_model=langchain_model)
             elapsed_ms = (time.perf_counter() - start) * 1000
             row[mode] = {
                 "chunks": [c.chunk_id for c in resp.retrieved_chunks],
@@ -72,13 +73,27 @@ def run():
             }
         rows.append(row)
 
-    print(f"{'Question':<45} {'Custom Chunks':<20} {'LangChain Chunks':<20} {'Same Chunks':<12} {'Same Citations':<14}")
+    print(
+        f"{'Question':<45} {'Custom Chunks':<20} {'LangChain Chunks':<20} "
+        f"{'Same Chunks':<12} {'Same Citations':<14} {'Timing ms (C/L)':<18}"
+    )
     for row in rows:
         cust, lc = row["custom"], row["langchain"]
+        timing = f"{cust['ms']}/{lc['ms']}"
         print(
             f"{row['question'][:44]:<45} {str(cust['chunks'])[:19]:<20} {str(lc['chunks'])[:19]:<20} "
-            f"{str(cust['chunks'] == lc['chunks']):<12} {str(cust['citations'] == lc['citations']):<14}"
+            f"{str(cust['chunks'] == lc['chunks']):<12} {str(cust['citations'] == lc['citations']):<14} {timing:<18}"
         )
+
+    # Summary averages - a single-case timing can be noisy (cold model
+    # cache, first-call overhead); averaging across all 5 cases gives a
+    # steadier signal for "is langchain meaningfully slower, and by how
+    # much" than eyeballing individual rows.
+    avg_custom_ms = sum(row["custom"]["ms"] for row in rows) / len(rows)
+    avg_langchain_ms = sum(row["langchain"]["ms"] for row in rows) / len(rows)
+    print(f"\nAverage timing - Custom: {avg_custom_ms:.1f}ms, LangChain: {avg_langchain_ms:.1f}ms")
+    print(f"LangChain overhead: {avg_langchain_ms - avg_custom_ms:+.1f}ms ({avg_langchain_ms / avg_custom_ms:.1f}x)")
+
     return rows
 
 
