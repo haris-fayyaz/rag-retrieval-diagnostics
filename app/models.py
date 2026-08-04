@@ -213,3 +213,60 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     expires_in: int  # seconds, mirrors JWT_EXPIRE_MINUTES
+    
+class AgentQueryRequest(BaseModel):
+    """
+    Request to POST /agent/query, the bounded LangGraph document
+    assistant. Same input fields as AgentState (see app/agent/state.py).
+
+    No retrieval_mode field: unlike /ask and /answer, the agent's
+    retriever is built once at graph-construction time (see
+    app/agent/document_assistant_graph.py), not chosen per request -
+    including a retrieval_mode field here would silently be ignored.
+    """
+    query: str
+    document_ids: Optional[List[str]] = None
+    top_k: int = 3
+    min_score: float = 0.05
+
+    @field_validator("query")
+    @classmethod
+    def check_query(cls, value: str) -> str:
+        return _validate_question(value)
+
+    @field_validator("top_k")
+    @classmethod
+    def check_top_k(cls, value: int) -> int:
+        return _validate_top_k(value)
+
+    @field_validator("min_score")
+    @classmethod
+    def check_min_score(cls, value: float) -> float:
+        return _validate_min_score(value)
+
+    @field_validator("document_ids")
+    @classmethod
+    def check_document_ids(cls, value: Optional[List[str]]) -> Optional[List[str]]:
+        return _validate_document_ids(value)
+
+class AgentQueryResponse(BaseModel):
+    """
+    Response from POST /agent/query.
+
+    answer is always a plain string, never None - generate_response_node
+    in the graph always produces a human-readable message, including
+    for refusals ("I can only search...") and tool errors ("Something
+    went wrong: ..."), unlike AnswerResponse where answer can be None.
+    """
+    request_id: str
+    answer: str
+    # None only when the router refused the request (status="refused") -
+    # otherwise one of: search_documents, list_documents, get_answer_run
+    selected_tool: Optional[str] = None
+    citations: List[str] = []
+    step_count: int
+    status: str  # "success" | "no_context" | "refused" | "tool_error"
+    # Raw error detail, already folded into `answer` as human-readable
+    # text - present here too for callers that want to branch on it
+    # programmatically instead of parsing `answer`.
+    error: Optional[str] = None

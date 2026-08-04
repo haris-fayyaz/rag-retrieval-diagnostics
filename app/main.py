@@ -10,7 +10,7 @@ import uuid
 from app.models import (
     DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse,
     AnswerRequest, AnswerResponse, ReindexResponse, AnswerRunResponse,
-    TokenRequest, TokenResponse,
+    TokenRequest, TokenResponse, AgentQueryRequest, AgentQueryResponse,
 )
 from app.core.security import verify_password, create_access_token, decode_access_token
 from app.core.rate_limit import rate_limit
@@ -20,9 +20,13 @@ from app.llm.fake_provider import FakeLLMProvider
 from app.llm.exceptions import LLMProviderError
 from app.llm.provider import LLMProvider
 from app.chains.langchain_answer_chain import get_chat_model
+from app.agent.document_assistant_graph import build_document_assistant_graph
+from app.agent.router import build_router
 from app.services.answer_service import generate_answer
 from app.services.chunking_service import chunk_text
 from app.services.retrieval import get_retriever
+from app.core.logging import get_logger, log_event
+import time
 
 configure_logging()  # must run before anything logs - see app/core/logging.py
 app = FastAPI(title="RAG Retrieval Diagnostics")
@@ -48,7 +52,6 @@ _repository = SQLiteDocumentRepository()
 def get_repository() -> DocumentRepository:
     """FastAPI dependency - overridden in tests to point at a temp DB."""
     return _repository
-
 
 
 # Provider selected via settings.llm_provider (LLM_PROVIDER env var) -
@@ -83,6 +86,24 @@ def get_langchain_model() -> BaseChatModel:
     """FastAPI dependency - overridden in tests with a controllable fake."""
     return _langchain_model
 
+
+logger = get_logger()
+
+# Agent graph, built once at import time - never rebuilt per request
+# (see app/agent/document_assistant_graph.py's own docstring on this).
+# Fixed to "tfidf" specifically: unlike /ask and /answer, the agent
+# has no per-request retrieval_mode field (see AgentQueryRequest), so
+# one retriever has to be picked once. tfidf matches this app's
+# overall default and needs no extra runtime dependency (no torch/
+# sentence-transformers) just to start the app.
+_agent_retriever = get_retriever("tfidf")
+_agent_router = build_router(_llm_provider, use_llm=(settings.llm_provider == "ollama"))
+_agent_graph = build_document_assistant_graph(_repository, _agent_retriever, _agent_router)
+
+def get_agent_graph():
+    """FastAPI dependency - overridden in tests with a graph built
+    against mocked repo/retriever/router."""
+    return _agent_graph
 
 _bearer_scheme = HTTPBearer(auto_error=False)
  
@@ -311,6 +332,65 @@ def get_answer_run(request_id: str, repo: DocumentRepository = Depends(get_repos
         raise HTTPException(status_code=404, detail=f"No answer run found for request_id '{request_id}'")
     return run
 
+
+
+@app.post(
+    "/agent/query",
+    response_model=AgentQueryResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_answer, get_current_user))],
+)
+def agent_query(request: AgentQueryRequest, graph=Depends(get_agent_graph), user: str = Depends(get_current_user)):
+    """
+    Bounded LangGraph document assistant - routes a query to one of
+    three read-only tools (search_documents, list_documents,
+    get_answer_run), executes it, and returns a grounded answer.
+
+    Unlike /answer, there's no try/except here mapping exception types
+    to status codes - the graph itself already converts every failure
+    (an unroutable request, a tool error) into a controlled AgentState
+    result before this function ever sees it. See
+    app/agent/document_assistant_graph.py's generate_response_node.
+    """
+    request_id = str(uuid.uuid4())
+    initial_state = {
+        "request_id": request_id,
+        "query": request.query,
+        "document_ids": request.document_ids,
+        "top_k": request.top_k,
+        "min_score": request.min_score,
+        "selected_tool": None,
+        "tool_result": None,
+        "answer": None,
+        "citations": [],
+        "status": "success",
+        "step_count": 0,
+        "error": None,
+    }
+
+    start = time.perf_counter()
+    final_state = graph.invoke(initial_state)
+    duration_ms = (time.perf_counter() - start) * 1000
+
+    # Observability per the task spec: request ID, selected tool, step
+    # count, duration, final status - never the query text or answer
+    # content itself (see log_event's own docstring on what's safe to
+    # pass).
+    log_event(
+        logger, "agent_query_completed",
+        request_id=request_id, selected_tool=final_state["selected_tool"],
+        step_count=final_state["step_count"], status=final_state["status"],
+        duration_ms=duration_ms,
+    )
+
+    return AgentQueryResponse(
+        request_id=request_id,
+        answer=final_state["answer"],
+        selected_tool=final_state["selected_tool"],
+        citations=final_state["citations"],
+        step_count=final_state["step_count"],
+        status=final_state["status"],
+        error=final_state["error"],
+    )
 
 if __name__ == "__main__":
     import uvicorn
