@@ -318,21 +318,24 @@ message (doesn't reveal which check failed).
 Exceeding a limit returns `429` with a `Retry-After` header. Failed
 login attempts count toward the `/auth/token` limit too.
 
-**In-memory only:** counts live in the running process's memory, reset
-on restart, and aren't shared across processes. Fine for this
-single-process local project, wrong for a real multi-instance
-deployment, since each instance tracks its own counts and the real
-combined rate could be N times the configured limit. A shared backend
-(Redis, most commonly) is required for that case.
+**SQLite-backed:** counts are stored in `data/rate_limits.db` (path
+configurable via `RATE_LIMIT_DB_PATH`), shared by every process/instance
+pointed at the same file, correct for multiple replicas on one host or
+sharing a volume, like this project's docker-compose setup. It does not
+span separate hosts without a shared filesystem, a genuinely
+distributed deployment across multiple machines would still want a
+backend like Redis instead.
 
 ### Known limitations
 
 - Single hardcoded user, no signup, no per-user permissions
 - No refresh tokens, once a token expires request a new one from `/auth/token`
 - No token revocation, a leaked token stays valid until it expires
-- `JWT_SECRET` unset means a random secret per process restart, all
-  previously issued tokens stop working on restart, don't rely on
-  this for anything beyond a quick local test
+- `JWT_SECRET` unset with `ENVIRONMENT=development` (default) means a
+  random secret per process restart, all previously issued tokens stop
+  working on restart, don't rely on this for anything beyond a quick
+  local test. With `ENVIRONMENT=production`, an unset `JWT_SECRET`
+  makes the app refuse to start instead.
 
 ## Answer Audit Trail
 
