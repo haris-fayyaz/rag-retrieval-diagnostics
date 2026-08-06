@@ -276,12 +276,15 @@ export const api = {
 
 /* ------------------------------------------------------------------ mock
  * Used only while VITE_API_BASE_URL is unset, so the interface is navigable
- * before the backend is wired up. Shapes mirror the real endpoints exactly. */
+ * before the backend is wired up. Returns RAW backend shapes (document_id,
+ * nested metadata, chunk_id-based citations), same as the real API, so it
+ * flows through the exact same mapping code in api.answer/api.agentQuery/
+ * api.listDocuments - no separate "mock shape" to keep in sync by hand. */
 
-const mockDocuments: Document[] = [
-  { id: 'doc_7f21ab', name: 'Research Notes', chunk_count: 14 },
-  { id: 'doc_c40e93', name: 'API Documentation', chunk_count: 32 },
-  { id: 'doc_19b8d2', name: 'Project Notes', chunk_count: 9 },
+const mockDocuments = [
+  { document_id: 'doc_7f21ab', name: 'Research Notes', chunk_count: 14 },
+  { document_id: 'doc_c40e93', name: 'API Documentation', chunk_count: 32 },
+  { document_id: 'doc_19b8d2', name: 'Project Notes', chunk_count: 9 },
 ]
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -301,8 +304,8 @@ async function mockRequest<T>(path: string, init: RequestInit): Promise<T> {
   }
 
   if (path === '/documents' && init.method === 'POST') {
-    const created: Document = {
-      id: `doc_${Math.random().toString(16).slice(2, 8)}`,
+    const created = {
+      document_id: `doc_${Math.random().toString(16).slice(2, 8)}`,
       name: body.name,
       chunk_count: Math.max(1, Math.ceil((body.text?.length ?? 0) / 480)),
     }
@@ -313,59 +316,72 @@ async function mockRequest<T>(path: string, init: RequestInit): Promise<T> {
   if (path === '/documents') return mockDocuments as T
 
   if (path === '/answer') {
-    const selected = mockDocuments.filter((d) => body.document_ids.includes(d.id))
+    const selected = mockDocuments.filter((d) => body.document_ids.includes(d.document_id))
     const grounded = selected.length > 0 && !/weather|stock price/i.test(body.question)
 
     if (!grounded) {
       return {
-        answer:
-          "I couldn't find enough relevant context in the selected sources to answer this question reliably.",
-        has_context: false,
-        citations: [],
-        chunks: [],
-        retrieval_ms: 38,
-        generation_ms: 210,
         request_id: requestId(),
+        question: body.question,
+        answer: null,
+        citations: [],
+        retrieved_chunks: [],
+        message: "I couldn't find enough relevant context in the selected sources to answer this question reliably.",
+        metadata: {
+          retrieval_ms: 38,
+          generation_ms: null,
+          total_ms: 38,
+          retrieved_chunk_count: 0,
+          retrieval_mode: 'tfidf',
+          provider: 'fake',
+        },
       } as T
     }
 
+    const retrieved_chunks = selected.slice(0, 3).map((doc, i) => ({
+      chunk_id: `${doc.document_id}_chunk_${[3, 1, 6][i] ?? i}`,
+      document_id: doc.document_id,
+      document_name: doc.name,
+      score: [0.82, 0.76, 0.61][i] ?? 0.5,
+      text_snippet:
+        i === 0
+          ? 'Retrieval is performed by embedding the incoming question and comparing it against the stored chunk vectors. The highest scoring chunks are selected and concatenated into the prompt context before generation begins.'
+          : i === 1
+            ? 'The /answer endpoint accepts a question, a list of document identifiers and a top_k value. It returns the generated answer, the citations used, the retrieved chunks and the timing breakdown for retrieval and generation.'
+            : 'Chunks that score below the relevance floor are discarded. If no chunk clears the floor the service returns a response indicating that no relevant context was found for the question.',
+    }))
+
     return {
-      answer: `Retrieval runs before generation. The pipeline embeds the question, ranks every chunk in the selected sources by cosine similarity, and passes only the top **${body.top_k}** results to the model as context.\n\nThe generation step is constrained to that context:\n\n- Claims that cannot be traced to a retrieved chunk are omitted rather than inferred.\n- Each sentence is linked back to the chunk it came from, which is what produces the citations below.\n- When similarity falls below the configured floor, the pipeline returns a no-context response instead of guessing.\n\nThe cutoff itself is configured through \`top_k\` on the request.`,
-      has_context: true,
-      citations: selected.slice(0, 2).map((doc, i) => ({
-        document_id: doc.id,
-        document_name: doc.name,
-        chunk_index: i === 0 ? 3 : 1,
-      })),
-      chunks: selected.slice(0, 3).map((doc, i) => ({
-        document_id: doc.id,
-        document_name: doc.name,
-        chunk_index: [3, 1, 6][i] ?? i,
-        score: [0.82, 0.76, 0.61][i] ?? 0.5,
-        text:
-          i === 0
-            ? 'Retrieval is performed by embedding the incoming question and comparing it against the stored chunk vectors. The highest scoring chunks are selected and concatenated into the prompt context before generation begins.'
-            : i === 1
-              ? 'The /answer endpoint accepts a question, a list of document identifiers and a top_k value. It returns the generated answer, the citations used, the retrieved chunks and the timing breakdown for retrieval and generation.'
-              : 'Chunks that score below the relevance floor are discarded. If no chunk clears the floor the service returns a response indicating that no relevant context was found for the question.',
-      })),
-      retrieval_ms: 42,
-      generation_ms: 1840,
       request_id: requestId(),
+      question: body.question,
+      answer: `Retrieval runs before generation. The pipeline embeds the question, ranks every chunk in the selected sources by cosine similarity, and passes only the top **${body.top_k}** results to the model as context.\n\nThe generation step is constrained to that context:\n\n- Claims that cannot be traced to a retrieved chunk are omitted rather than inferred.\n- Each sentence is linked back to the chunk it came from, which is what produces the citations below.\n- When similarity falls below the configured floor, the pipeline returns a no-context response instead of guessing.\n\nThe cutoff itself is configured through \`top_k\` on the request.`,
+      citations: retrieved_chunks.slice(0, 2).map((c) => c.chunk_id),
+      retrieved_chunks,
+      message: null,
+      metadata: {
+        retrieval_ms: 42,
+        generation_ms: 1840,
+        total_ms: 1882,
+        retrieved_chunk_count: retrieved_chunks.length,
+        retrieval_mode: 'tfidf',
+        provider: 'fake',
+      },
     } as T
   }
 
   if (path === '/agent/query') {
     return {
-      answer: `The agent selected the document retrieval tool and searched the indexed sources for material on chunk ranking.\n\nRanking uses cosine similarity over the embedded chunks, with the score threshold applied after ranking rather than before it.`,
-      tool: 'document_search',
-      citations: [
-        { document_id: 'doc_7f21ab', document_name: 'Research Notes', chunk_index: 2 },
-        { document_id: 'doc_c40e93', document_name: 'API Documentation', chunk_index: 5 },
-      ],
-      steps: 3,
-      status: 'completed',
       request_id: requestId(),
+      answer:
+        'The agent selected the document retrieval tool and searched the indexed sources for material on chunk ranking.\n\nRanking uses cosine similarity over the embedded chunks, with the score threshold applied after ranking rather than before it.',
+      selected_tool: 'search_documents',
+      citations: [
+        { chunk_id: 'doc_7f21ab_chunk_2', document_id: 'doc_7f21ab', document_name: 'Research Notes' },
+        { chunk_id: 'doc_c40e93_chunk_5', document_id: 'doc_c40e93', document_name: 'API Documentation' },
+      ],
+      step_count: 3,
+      status: 'success',
+      error: null,
     } as T
   }
 
