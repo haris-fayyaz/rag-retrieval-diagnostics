@@ -70,15 +70,32 @@ interface RawAnswerResponse {
   message: string | null
   metadata: RawAnswerMetadata | null
 }
-}
 
 export interface AgentResponse {
   answer: string
   tool: string
   citations: Citation[]
   steps: number
-  status: 'completed' | 'partial' | 'failed'
+  // Real backend status values, shown as-is in the UI, not remapped
+  // into fake categories.
+  status: 'success' | 'no_context' | 'refused' | 'tool_error'
   request_id: string
+}
+
+interface RawAgentCitation {
+  chunk_id: string
+  document_id: string
+  document_name: string
+}
+
+interface RawAgentQueryResponse {
+  request_id: string
+  answer: string
+  selected_tool: string | null
+  citations: RawAgentCitation[]
+  step_count: number
+  status: string
+  error: string | null
 }
 
 export interface Session {
@@ -232,11 +249,28 @@ export const api = {
     }
   },
 
-  agentQuery(question: string): Promise<AgentResponse> {
-    return request<AgentResponse>('/agent/query', {
+  async agentQuery(question: string): Promise<AgentResponse> {
+    // Backend field is "query", not "question" - this endpoint's
+    // request shape differs from /answer's.
+    const raw = await request<RawAgentQueryResponse>('/agent/query', {
       method: 'POST',
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ query: question }),
     })
+
+    return {
+      answer: raw.answer,
+      tool: raw.selected_tool ?? 'none',
+      // No separate retrieved-chunks list here (unlike /answer), so
+      // each citation's own array position is its display rank.
+      citations: raw.citations.map((c, i) => ({
+        document_id: c.document_id,
+        document_name: c.document_name,
+        chunk_index: i + 1,
+      })),
+      steps: raw.step_count,
+      status: raw.status as AgentResponse['status'],
+      request_id: raw.request_id,
+    }
   },
 }
 
