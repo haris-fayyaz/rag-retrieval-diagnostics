@@ -12,7 +12,7 @@ from langgraph.graph import END, START, StateGraph
 
 from app.agent.router import QueryRouter
 from app.agent.state import AgentState
-from app.agent.tools import ToolError, get_answer_run, list_documents, search_documents
+from app.agent.tools import ToolError, _citations_from_chunk_ids, get_answer_run, list_documents, search_documents
 from app.core.logging import get_logger, log_event
 
 logger = get_logger()
@@ -81,7 +81,11 @@ def build_document_assistant_graph(repo, retriever, router: QueryRouter):
             preview = "\n".join(f"- {c['document_name']}: {c['text_preview']}" for c in chunks)
             return {
                 "answer": f"Found {len(chunks)} relevant chunk(s):\n{preview}",
-                "citations": [c["chunk_id"] for c in chunks], "step_count": step,
+                "citations": [
+                    {"chunk_id": c["chunk_id"], "document_id": c["document_id"], "document_name": c["document_name"]}
+                    for c in chunks
+                ],
+                "step_count": step,
             }
 
         if tool == "list_documents":
@@ -97,7 +101,11 @@ def build_document_assistant_graph(repo, retriever, router: QueryRouter):
                 "answer": f"Request {result['request_id']} has no generated answer (status: {result['status']}).",
                 "citations": [], "status": "no_context", "step_count": step,
             }
-        return {"answer": result["answer"], "citations": result["citations"], "step_count": step}
+        return {
+            "answer": result["answer"],
+            "citations": _citations_from_chunk_ids(result["citations"], repo),
+            "step_count": step,
+        }
 
     def route_decision(state: AgentState) -> str:
         return "generate_response" if state["status"] == "refused" else "execute_tool"
