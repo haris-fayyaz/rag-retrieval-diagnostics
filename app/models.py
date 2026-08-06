@@ -172,14 +172,21 @@ class AnswerRequest(BaseModel):
         return _validate_document_ids(value)
 
 class AnswerChunkRef(BaseModel):
-    """Slim source reference for /answer responses - just enough to
-    identify and cite a chunk. Deliberately excludes text_preview:
-    the answer already contains the grounded text, so echoing full
-    chunk content back would be redundant."""
+    """Slim source reference for /answer responses - enough to
+    identify, cite, and preview a chunk without echoing the full text
+    back (the answer already contains the grounded content in full).
+
+    text_snippet, not text_preview: Chunk.text_preview elsewhere in
+    this file holds the FULL chunk text despite its name (retrieval/
+    prompt building need the whole thing). This field is genuinely
+    truncated, a different name avoids the same word meaning two
+    different things in this same module.
+    """
     chunk_id: str
     document_id: str
     document_name: str
     score: float
+    text_snippet: str
 
 class AnswerMetadata(BaseModel):
     """
