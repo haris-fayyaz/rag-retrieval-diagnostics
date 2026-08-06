@@ -29,7 +29,7 @@ export default function RetrievedContext({ chunks }: { chunks: Chunk[] }) {
     >
       <div className="flex flex-col divide-y divide-border">
         {chunks.map((chunk, i) => (
-          <div key={`${chunk.document_id}-${chunk.chunk_index}`} className="py-3.5 first:pt-0 last:pb-0">
+          <div key={`${chunk.document_id}-${i}`} className="py-3.5 first:pt-0 last:pb-0">
             <RetrievedChunk chunk={chunk} position={i + 1} />
           </div>
         ))}
