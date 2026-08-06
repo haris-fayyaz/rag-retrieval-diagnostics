@@ -82,7 +82,30 @@ def list_documents(repo: DocumentRepository) -> Dict[str, Any]:
     log_event(logger, "tool_list_documents_succeeded", document_count=len(payload))
     return {"document_count": len(payload), "documents": payload}
 
+def _citations_from_chunk_ids(chunk_ids: List[str], repo: DocumentRepository) -> List[Dict[str, str]]:
+    """
+    Resolve raw chunk_ids (as stored on a past AnswerRun) into full
+    citation dicts with document_id/document_name attached.
 
+    Only get_answer_run needs this: unlike search_documents, a stored
+    AnswerRun.citations list is just chunk_id strings, no document
+    metadata travels with it. If a document has since been deleted,
+    its chunk_ids are silently skipped - a historical audit lookup
+    should not fail just because the source document is gone.
+    """
+    if not chunk_ids:
+        return []
+    chunk_by_id = {c.chunk_id: c for c in repo.get_chunks()}
+    return [
+        {
+            "chunk_id": cid,
+            "document_id": chunk_by_id[cid].document_id,
+            "document_name": chunk_by_id[cid].document_name,
+        }
+        for cid in chunk_ids
+        if cid in chunk_by_id
+    ]
+    
 def get_answer_run(request_id: str, repo: DocumentRepository) -> Dict[str, Any]:
     """
     Fetch the stored audit record for a previous /answer call.
