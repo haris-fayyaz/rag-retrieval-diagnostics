@@ -87,7 +87,7 @@ export default function AgentPage({ onOpenNav }: { onOpenNav: () => void }) {
                       <>
                         <div className="flex flex-wrap items-center gap-1.5">
                           <StatusBadge
-                            tone={result.status === 'completed' ? 'success' : 'warning'}
+                            tone={result.status === 'success' ? 'success' : 'warning'}
                             dot
                           >
                             {result.status}
