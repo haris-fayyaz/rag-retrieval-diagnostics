@@ -18,13 +18,14 @@ export interface Document {
 export interface Citation {
   document_id: string
   document_name: string
+  // Position of this chunk within the retrieved list (1-based), not a
+  // backend id. Backend has no numeric index, only a chunk_id string.
   chunk_index: number
 }
 
 export interface RetrievedChunk {
   document_id: string
   document_name: string
-  chunk_index: number
   score: number
   text: string
 }
@@ -35,8 +36,40 @@ export interface AnswerResponse {
   citations: Citation[]
   chunks: RetrievedChunk[]
   retrieval_ms: number
-  generation_ms: number
+  generation_ms?: number
   request_id: string
+}
+
+/* -------------------------------------------------- raw backend shapes
+ * Mirrors app/models.py exactly. Never exposed outside this file, the
+ * `answer()` function below maps these into the shapes above. */
+
+interface RawAnswerChunkRef {
+  chunk_id: string
+  document_id: string
+  document_name: string
+  score: number
+  text_snippet: string
+}
+
+interface RawAnswerMetadata {
+  retrieval_ms: number
+  generation_ms: number | null
+  total_ms: number
+  retrieved_chunk_count: number
+  retrieval_mode: string
+  provider: string
+}
+
+interface RawAnswerResponse {
+  request_id: string
+  question: string
+  answer: string | null
+  citations: string[]
+  retrieved_chunks: RawAnswerChunkRef[]
+  message: string | null
+  metadata: RawAnswerMetadata | null
+}
 }
 
 export interface AgentResponse {
@@ -162,15 +195,41 @@ export const api = {
     return { id: doc.document_id, name: doc.name, chunk_count: doc.chunk_count }
   },
 
-  answer(params: {
+  async answer(params: {
     question: string
     document_ids: string[]
     top_k: number
   }): Promise<AnswerResponse> {
-    return request<AnswerResponse>('/answer', {
+    const raw = await request<RawAnswerResponse>('/answer', {
       method: 'POST',
       body: JSON.stringify(params),
     })
+
+    // retrieved_chunks is already sorted by score (backend guarantees this),
+    // so array position doubles as the display rank, 1-based.
+    const positionByChunkId = new Map(raw.retrieved_chunks.map((c, i) => [c.chunk_id, i + 1]))
+
+    return {
+      answer: raw.answer ?? raw.message ?? '',
+      has_context: raw.answer !== null,
+      citations: raw.citations.map((chunkId) => {
+        const chunk = raw.retrieved_chunks.find((c) => c.chunk_id === chunkId)
+        return {
+          document_id: chunk?.document_id ?? '',
+          document_name: chunk?.document_name ?? '',
+          chunk_index: positionByChunkId.get(chunkId) ?? 0,
+        }
+      }),
+      chunks: raw.retrieved_chunks.map((c) => ({
+        document_id: c.document_id,
+        document_name: c.document_name,
+        score: c.score,
+        text: c.text_snippet,
+      })),
+      retrieval_ms: raw.metadata?.retrieval_ms ?? 0,
+      generation_ms: raw.metadata?.generation_ms ?? undefined,
+      request_id: raw.request_id,
+    }
   },
 
   agentQuery(question: string): Promise<AgentResponse> {
