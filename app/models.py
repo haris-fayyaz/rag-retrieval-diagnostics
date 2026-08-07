@@ -97,7 +97,10 @@ class AskRequest(BaseModel):
     question: str
     top_k: int = 3
     document_ids: Optional[List[str]] = None
-    min_score: float = 0.0
+    # 0.0 let zero-overlap chunks (score == 0, e.g. "Hi") still pass through
+    # as "top_k results" even though they share no vocabulary with the
+    # question at all. A small positive floor filters those out by default.
+    min_score: float = 0.05
     retrieval_mode: str = "tfidf"  # "tfidf" or "semantic"
     
     @field_validator("question")
@@ -141,7 +144,10 @@ class AnswerRequest(BaseModel):
     question: str
     top_k: int = 3
     document_ids: Optional[List[str]] = None
-    min_score: float = 0.0
+    # 0.0 let zero-overlap chunks (score == 0, e.g. "Hi") still pass through
+    # as "top_k results" even though they share no vocabulary with the
+    # question at all. A small positive floor filters those out by default.
+    min_score: float = 0.05
     retrieval_mode: str = "tfidf"  # "tfidf", "semantic", or "hybrid"
     # "custom" (default, existing hand-rolled prompt/provider path) or
     # "langchain" (optional LCEL pipeline - see app/chains/). A Literal
