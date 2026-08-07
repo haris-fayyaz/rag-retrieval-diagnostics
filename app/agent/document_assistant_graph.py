@@ -80,7 +80,7 @@ def build_document_assistant_graph(repo, retriever, router: QueryRouter):
                 return {"answer": "No relevant chunks found.", "citations": [], "status": "no_context", "step_count": step}
             preview = "\n".join(f"- {c['document_name']}: {c['text_preview']}" for c in chunks)
             return {
-                "answer": f"Found {len(chunks)} relevant chunk(s):\n{preview}",
+                "answer": f"Found {len(chunks)} relevant chunk(s):\n\n{preview}",
                 "citations": [
                     {"chunk_id": c["chunk_id"], "document_id": c["document_id"], "document_name": c["document_name"]}
                     for c in chunks
