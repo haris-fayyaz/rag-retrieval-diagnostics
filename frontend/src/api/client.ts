@@ -37,6 +37,10 @@ export interface AnswerResponse {
   chunks: RetrievedChunk[]
   retrieval_ms: number
   generation_ms?: number
+  total_ms?: number
+  retrieved_chunk_count?: number
+  retrieval_mode?: string
+  provider?: string
   request_id: string
 }
 
@@ -216,6 +220,8 @@ export const api = {
     question: string
     document_ids: string[]
     top_k: number
+    retrieval_mode?: string
+    pipeline_mode?: string
   }): Promise<AnswerResponse> {
     const raw = await request<RawAnswerResponse>('/answer', {
       method: 'POST',
@@ -245,6 +251,10 @@ export const api = {
       })),
       retrieval_ms: raw.metadata?.retrieval_ms ?? 0,
       generation_ms: raw.metadata?.generation_ms ?? undefined,
+      total_ms: raw.metadata?.total_ms,
+      retrieved_chunk_count: raw.metadata?.retrieved_chunk_count,
+      retrieval_mode: raw.metadata?.retrieval_mode,
+      provider: raw.metadata?.provider,
       request_id: raw.request_id,
     }
   },
