@@ -35,16 +35,24 @@ export default function SourceSelector({
   documents,
   selectedIds,
   topK,
+  retrievalMode,
+  pipelineMode,
   onToggle,
   onTopKChange,
+  onRetrievalModeChange,
+  onPipelineModeChange,
   onClose,
   onManageDocuments,
 }: {
   documents: Document[]
   selectedIds: string[]
   topK: number
+  retrievalMode: string
+  pipelineMode: string
   onToggle: (id: string) => void
   onTopKChange: (topK: number) => void
+  onRetrievalModeChange: (mode: string) => void
+  onPipelineModeChange: (mode: string) => void
   onClose: () => void
   onManageDocuments: () => void
 }) {
@@ -119,18 +127,43 @@ export default function SourceSelector({
         )}
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-3">
-        <label className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
-          Top K
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={topK}
-            onChange={(e) => onTopKChange(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
-            className="h-7 w-14 rounded-sm border border-border bg-background px-2 text-center font-mono text-[12px] text-foreground focus:border-accent focus:outline-none"
-          />
-        </label>
+      <div className="flex flex-col gap-3 border-t border-border px-4 py-3">
+        <div className="grid grid-cols-2 gap-x-3 gap-y-2.5">
+          <label className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+            Top K
+            <input
+              type="number"
+              min={1}
+              max={20}
+              value={topK}
+              onChange={(e) => onTopKChange(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
+              className="h-7 w-14 rounded-sm border border-border bg-background px-2 text-center font-mono text-[12px] text-foreground focus:border-accent focus:outline-none"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+            Retrieval
+            <select
+              value={retrievalMode}
+              onChange={(e) => onRetrievalModeChange(e.target.value)}
+              className="h-7 rounded-sm border border-border bg-background px-1.5 text-[12px] text-foreground focus:border-accent focus:outline-none"
+            >
+              <option value="tfidf">tfidf</option>
+              <option value="semantic">semantic</option>
+              <option value="hybrid">hybrid</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
+            Pipeline
+            <select
+              value={pipelineMode}
+              onChange={(e) => onPipelineModeChange(e.target.value)}
+              className="h-7 rounded-sm border border-border bg-background px-1.5 text-[12px] text-foreground focus:border-accent focus:outline-none"
+            >
+              <option value="custom">custom</option>
+              <option value="langchain">langchain</option>
+            </select>
+          </label>
+        </div>
         <Button size="sm" onClick={onClose}>
           Done
         </Button>
