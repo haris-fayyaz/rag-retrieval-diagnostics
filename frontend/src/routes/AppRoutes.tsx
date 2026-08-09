@@ -29,6 +29,8 @@ function AuthenticatedApp({ username, onLogout }: { username: string; onLogout: 
   const [navOpen, setNavOpen] = useState(false)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [topK, setTopK] = useState(4)
+  const [retrievalMode, setRetrievalMode] = useState('tfidf')
+  const [pipelineMode, setPipelineMode] = useState('custom')
   const [turns, setTurns] = useState<Turn[]>([])
 
   function toggleSource(id: string) {
@@ -60,6 +62,10 @@ function AuthenticatedApp({ username, onLogout }: { username: string; onLogout: 
               onToggleSource={toggleSource}
               topK={topK}
               onTopKChange={setTopK}
+              retrievalMode={retrievalMode}
+              onRetrievalModeChange={setRetrievalMode}
+              pipelineMode={pipelineMode}
+              onPipelineModeChange={setPipelineMode}
               turns={turns}
               onTurnsChange={setTurns}
               onManageDocuments={() => navigate('/documents')}
