@@ -12,8 +12,12 @@ export default function MessageComposer({
   documents,
   selectedIds,
   topK,
+  retrievalMode,
+  pipelineMode,
   onToggleSource,
   onTopKChange,
+  onRetrievalModeChange,
+  onPipelineModeChange,
   onManageDocuments,
 }: {
   value: string
@@ -24,8 +28,12 @@ export default function MessageComposer({
   documents: Document[]
   selectedIds: string[]
   topK: number
+  retrievalMode: string
+  pipelineMode: string
   onToggleSource: (id: string) => void
   onTopKChange: (topK: number) => void
+  onRetrievalModeChange: (mode: string) => void
+  onPipelineModeChange: (mode: string) => void
   onManageDocuments: () => void
 }) {
   const [sourcesOpen, setSourcesOpen] = useState(false)
@@ -49,8 +57,12 @@ export default function MessageComposer({
           documents={documents}
           selectedIds={selectedIds}
           topK={topK}
+          retrievalMode={retrievalMode}
+          pipelineMode={pipelineMode}
           onToggle={onToggleSource}
           onTopKChange={onTopKChange}
+          onRetrievalModeChange={onRetrievalModeChange}
+          onPipelineModeChange={onPipelineModeChange}
           onClose={() => setSourcesOpen(false)}
           onManageDocuments={() => {
             setSourcesOpen(false)
