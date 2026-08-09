@@ -29,6 +29,10 @@ export default function AnswerPage({
   onToggleSource,
   topK,
   onTopKChange,
+  retrievalMode,
+  onRetrievalModeChange,
+  pipelineMode,
+  onPipelineModeChange,
   turns,
   onTurnsChange,
   onManageDocuments,
@@ -39,6 +43,10 @@ export default function AnswerPage({
   onToggleSource: (id: string) => void
   topK: number
   onTopKChange: (topK: number) => void
+  retrievalMode: string
+  onRetrievalModeChange: (mode: string) => void
+  pipelineMode: string
+  onPipelineModeChange: (mode: string) => void
   turns: Turn[]
   onTurnsChange: (turns: Turn[]) => void
   onManageDocuments: () => void
@@ -64,7 +72,13 @@ export default function AnswerPage({
     const toGenerating = setTimeout(() => setPhase('generating'), 700)
 
     try {
-      const response = await api.answer({ question, document_ids: selectedIds, top_k: topK })
+      const response = await api.answer({
+        question,
+        document_ids: selectedIds,
+        top_k: topK,
+        retrieval_mode: retrievalMode,
+        pipeline_mode: pipelineMode,
+      })
       onTurnsChange([...next, { kind: 'answer', id: response.request_id, response }])
     } catch (err) {
       onTurnsChange([
@@ -108,6 +122,10 @@ export default function AnswerPage({
                 documents={documents}
                 selectedIds={selectedIds}
                 topK={topK}
+                retrievalMode={retrievalMode}
+                onRetrievalModeChange={onRetrievalModeChange}
+                pipelineMode={pipelineMode}
+                onPipelineModeChange={onPipelineModeChange}
                 onToggleSource={onToggleSource}
                 onTopKChange={onTopKChange}
                 onManageDocuments={onManageDocuments}
@@ -150,6 +168,10 @@ export default function AnswerPage({
                             retrievalMs={response.retrieval_ms}
                             generationMs={response.generation_ms}
                             requestId={response.request_id}
+                            extra={[
+                              ...(response.retrieval_mode ? [{ label: 'Retrieval mode', value: response.retrieval_mode }] : []),
+                              ...(response.provider ? [{ label: 'Provider', value: response.provider }] : []),
+                            ]}
                           />
                         </div>
                       </>
