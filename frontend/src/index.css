@@ -2,6 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap');
 
 @import 'tailwindcss';
+@import './styles/animations.css';
 
 :root {
   --background: #ffffff;
@@ -13,7 +14,7 @@
   --secondary: #f5f5f5;
   --secondary-foreground: #111111;
   --muted: #fafaf8;
-  --muted-foreground: #777777;
+  --muted-foreground: #707070;
   --subtle-foreground: #555555;
   --accent: #68705b;
   --accent-foreground: #ffffff;
@@ -23,7 +24,7 @@
   --radius: 0.625rem;
 
   --success: #4f6f52;
-  --warning: #8a6d3b;
+  --warning: #866a39;
   --error: #8c4a45;
 }
 
