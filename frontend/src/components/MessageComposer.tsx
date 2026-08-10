@@ -78,13 +78,13 @@ export default function MessageComposer({
             {selectedDocs.map((doc) => (
               <span
                 key={doc.id}
-                className="inline-flex items-center gap-1.5 rounded-sm border border-[#d8dbd1] bg-accent-surface py-[2px] pl-2 pr-1 text-[12px] font-medium text-accent"
+                className="inline-flex items-center gap-1.5 rounded-sm border border-emphasis-border bg-emphasis-surface py-[2px] pl-2 pr-1 text-[12px] font-medium text-foreground"
               >
                 {doc.name}
                 <button
                   onClick={() => onToggleSource(doc.id)}
                   aria-label={`Remove ${doc.name}`}
-                  className="flex h-4 w-4 items-center justify-center rounded-[3px] transition-colors hover:bg-[#e2e5db]"
+                  className="flex h-4 w-4 items-center justify-center rounded-[3px] transition-colors hover:bg-[#e0e0e0]"
                 >
                   <CloseIcon width={9} height={9} strokeWidth={1.8} />
                 </button>
@@ -120,7 +120,7 @@ export default function MessageComposer({
             onClick={onSubmit}
             disabled={!canSend}
             aria-label="Send message"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition-all duration-150 hover:bg-[#262626] disabled:bg-[#e0e0e0] disabled:text-[#a8a8a8]"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground transition-all duration-150 hover:bg-[#262626] disabled:bg-[#e0e0e0] disabled:text-[#a8a8a8] lg:h-9 lg:w-9"
           >
             <ArrowUpIcon strokeWidth={1.6} />
           </button>

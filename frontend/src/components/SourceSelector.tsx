@@ -17,9 +17,9 @@ export function SourceButton({
       onClick={onClick}
       aria-expanded={open}
       aria-label="Add sources"
-      className={`flex h-9 shrink-0 items-center gap-1.5 rounded-md border pl-2 pr-2 text-[13px] font-medium transition-colors duration-150 ${
+      className={`flex h-11 shrink-0 items-center gap-1.5 rounded-md border pl-2 pr-2 text-[13px] font-medium transition-colors duration-150 lg:h-9 ${
         count > 0
-          ? 'border-[#d8dbd1] bg-accent-surface text-accent'
+          ? 'border-primary bg-primary text-primary-foreground'
           : open
             ? 'border-[#d0d0d0] bg-secondary text-foreground'
             : 'border-border bg-background text-subtle-foreground hover:border-[#d0d0d0] hover:bg-secondary hover:text-foreground'
@@ -78,7 +78,7 @@ export default function SourceSelector({
       ref={ref}
       role="dialog"
       aria-label="Add sources"
-      className="animate-scale-in absolute bottom-[calc(100%+10px)] left-0 z-20 w-[336px] origin-bottom-left overflow-hidden rounded-lg border border-border bg-background shadow-[0_12px_28px_-18px_rgba(0,0,0,0.28)]"
+      className="animate-scale-in absolute bottom-[calc(100%+10px)] left-0 z-20 w-full origin-bottom-left overflow-hidden rounded-lg border border-border bg-background shadow-[0_12px_28px_-18px_rgba(0,0,0,0.28)] sm:w-[336px]"
     >
       <div className="flex items-baseline justify-between border-b border-border px-4 py-3">
         <h3 className="text-[13.5px] font-semibold">Add sources</h3>
@@ -103,12 +103,12 @@ export default function SourceSelector({
                 onClick={() => onToggle(doc.id)}
                 aria-pressed={checked}
                 className={`flex w-full items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors duration-150 ${
-                  checked ? 'bg-accent-surface' : 'hover:bg-secondary'
+                  checked ? 'bg-emphasis-surface' : 'hover:bg-secondary'
                 }`}
               >
                 <span
                   className={`flex h-[17px] w-[17px] shrink-0 items-center justify-center rounded-[4px] border ${
-                    checked ? 'border-accent bg-accent text-accent-foreground' : 'border-[#cfcfcf] bg-background'
+                    checked ? 'border-primary bg-primary text-primary-foreground' : 'border-[#cfcfcf] bg-background'
                   }`}
                 >
                   {checked && <CheckIcon width={11} height={11} strokeWidth={2} />}
@@ -137,7 +137,7 @@ export default function SourceSelector({
               max={20}
               value={topK}
               onChange={(e) => onTopKChange(Math.min(20, Math.max(1, Number(e.target.value) || 1)))}
-              className="h-7 w-14 rounded-sm border border-border bg-background px-2 text-center font-mono text-[12px] text-foreground focus:border-accent focus:outline-none"
+              className="h-7 w-14 rounded-sm border border-border bg-background px-2 text-center font-mono text-[12px] text-foreground focus:border-foreground focus:outline-none"
             />
           </label>
           <label className="flex items-center gap-2 text-[12.5px] text-muted-foreground">
@@ -145,7 +145,7 @@ export default function SourceSelector({
             <select
               value={retrievalMode}
               onChange={(e) => onRetrievalModeChange(e.target.value)}
-              className="h-7 rounded-sm border border-border bg-background px-1.5 text-[12px] text-foreground focus:border-accent focus:outline-none"
+              className="h-7 rounded-sm border border-border bg-background px-1.5 text-[12px] text-foreground focus:border-foreground focus:outline-none"
             >
               <option value="tfidf">tfidf</option>
               <option value="semantic">semantic</option>
@@ -157,16 +157,14 @@ export default function SourceSelector({
             <select
               value={pipelineMode}
               onChange={(e) => onPipelineModeChange(e.target.value)}
-              className="h-7 rounded-sm border border-border bg-background px-1.5 text-[12px] text-foreground focus:border-accent focus:outline-none"
+              className="h-7 rounded-sm border border-border bg-background px-1.5 text-[12px] text-foreground focus:border-foreground focus:outline-none"
             >
               <option value="custom">custom</option>
               <option value="langchain">langchain</option>
             </select>
           </label>
         </div>
-        <Button size="sm" onClick={onClose}>
-          Done
-        </Button>
+        <Button onClick={onClose}>Done</Button>
       </div>
 
       <button

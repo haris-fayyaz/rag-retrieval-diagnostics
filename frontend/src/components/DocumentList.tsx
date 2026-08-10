@@ -36,15 +36,15 @@ export default function DocumentList({
 
       {loading ? (
         <>
-+          <span className="sr-only" role="status">
-+            Loading documents…
-+          </span>
-+          <ul className="divide-y divide-border" aria-hidden="true">
-+            <DocumentItemSkeleton />
-+            <DocumentItemSkeleton />
-+            <DocumentItemSkeleton />
-+          </ul>
-+        </>
+          <span className="sr-only" role="status">
+            Loading documents…
+          </span>
+          <ul className="divide-y divide-border" aria-hidden="true">
+            <DocumentItemSkeleton />
+            <DocumentItemSkeleton />
+            <DocumentItemSkeleton />
+          </ul>
+        </>
       ) : documents.length === 0 ? (
         <p className="px-4 py-6 text-[13px] leading-relaxed text-muted-foreground">
           No documents yet. Add one above to make it available as a source in chat.

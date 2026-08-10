@@ -7,7 +7,7 @@ export function NewChatButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
-      className="group flex h-10 w-full items-center gap-2.5 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors duration-150 hover:border-[#d0d0d0] hover:bg-secondary"
+      className="group flex h-11 w-full items-center gap-2.5 rounded-md border border-border bg-background px-3 text-sm font-medium text-foreground transition-colors duration-150 hover:border-[#d0d0d0] hover:bg-secondary md:h-10"
     >
       <PlusIcon className="text-subtle-foreground transition-colors group-hover:text-foreground" />
       New chat
@@ -32,18 +32,18 @@ export function NavigationItem({
     <button
       onClick={onClick}
       disabled={muted}
-      className={`relative flex h-9 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13.5px] transition-colors duration-150 ${
+      className={`relative flex h-11 w-full items-center gap-2.5 rounded-md px-2.5 text-left text-[13.5px] transition-colors duration-150 md:h-9 ${
         active
-          ? 'bg-accent-surface font-medium text-foreground'
+          ? 'bg-secondary font-medium text-foreground'
           : muted
             ? 'cursor-default text-[#a3a3a3]'
             : 'text-subtle-foreground hover:bg-secondary hover:text-foreground'
       }`}
     >
       {active && (
-        <span className="absolute left-0 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-accent" />
+        <span className="absolute left-0 top-1/2 h-4 w-[2px] -translate-y-1/2 rounded-full bg-foreground" />
       )}
-      {icon && <span className={active ? 'text-accent' : 'text-[#9a9a9a]'}>{icon}</span>}
+      {icon && <span className={active ? 'text-foreground' : 'text-[#9a9a9a]'}>{icon}</span>}
       <span className="truncate">{label}</span>
     </button>
   )
@@ -122,7 +122,7 @@ export default function Sidebar({
             onClick={onLogout}
             title="Log out"
             aria-label="Log out"
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground md:h-8 md:w-8"
           >
             <LogoutIcon />
           </button>

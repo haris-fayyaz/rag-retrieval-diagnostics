@@ -16,7 +16,7 @@ export default function Textarea({ label, hint, id, className = '', ...props }: 
       <textarea
         id={id}
         {...props}
-        className={`w-full resize-y rounded-md border border-border bg-background px-3 py-2.5 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground transition-colors duration-150 hover:border-[#d0d0d0] focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent ${className}`}
+        className={`w-full resize-y rounded-md border border-border bg-background px-3 py-2.5 text-sm leading-relaxed text-foreground placeholder:text-muted-foreground transition-colors duration-150 hover:border-[#d0d0d0] focus:border-foreground focus:outline-none focus:ring-1 focus:ring-foreground/15 ${className}`}
       />
       {hint && <p className="text-[12px] text-muted-foreground">{hint}</p>}
     </div>

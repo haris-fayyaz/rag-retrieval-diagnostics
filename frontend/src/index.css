@@ -13,19 +13,21 @@
   --primary-foreground: #ffffff;
   --secondary: #f5f5f5;
   --secondary-foreground: #111111;
-  --muted: #fafaf8;
-  --muted-foreground: #707070;
-  --subtle-foreground: #555555;
-  --accent: #68705b;
-  --accent-foreground: #ffffff;
-  --accent-surface: #f0f1ec;
-  --border: #e5e5e5;
-  --ring: #68705b;
-  --radius: 0.625rem;
+  --muted: #fafafa;
+  --muted-foreground: #737373;
+  --subtle-foreground: #525252;
 
-  --success: #4f6f52;
-  --warning: #866a39;
-  --error: #8c4a45;
+  /* Selection/emphasis surface: the grayscale stand-in for what used to be
+     the olive "accent". Used anywhere something needs to read as chosen/
+     active without introducing color — selected rows, chips, checked
+     checkboxes borrow --primary directly instead. */
+  --emphasis-surface: #f0f0f0;
+  --emphasis-border: #d4d4d4;
+
+  --border: #e5e5e5;
+  --border-strong: #d4d4d4;
+  --ring: #171717;
+  --radius: 0.625rem;
 }
 
 @theme inline {
@@ -40,14 +42,11 @@
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-subtle-foreground: var(--subtle-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-accent-surface: var(--accent-surface);
+  --color-emphasis-surface: var(--emphasis-surface);
+  --color-emphasis-border: var(--emphasis-border);
   --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
   --color-ring: var(--ring);
-  --color-success: var(--success);
-  --color-warning: var(--warning);
-  --color-error: var(--error);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -56,6 +55,17 @@
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
+
+  /* Motion tokens — this is the whole reason the UI has felt "dead": the
+     components already reference animate-fade-in / animate-slide-up /
+     animate-slide-in-left / animate-scale-in, but nothing defined them,
+     so Tailwind silently dropped the classes. Registering them here makes
+     every existing call site work with zero component changes. */
+  --animate-fade-in: fade-in 180ms ease-out;
+  --animate-slide-up: slide-up 220ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-slide-in-left: slide-in-left 240ms cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-scale-in: scale-in 140ms ease-out;
+  --animate-shimmer: shimmer 1.6s ease-in-out infinite;
 }
 
 @layer base {
@@ -73,7 +83,7 @@
   }
 
   ::selection {
-    background-color: var(--accent-surface);
+    background-color: var(--emphasis-surface);
     color: var(--foreground);
   }
 
@@ -115,5 +125,21 @@
     letter-spacing: 0.09em;
     text-transform: uppercase;
     color: var(--muted-foreground);
+  }
+
+  /* Grayscale shimmer placeholder for async content. Referenced across
+     DocumentList/LoadingState but previously undefined — visible loading
+     feedback was silently missing everywhere. */
+  .skeleton {
+    background: linear-gradient(90deg, var(--secondary) 25%, #ececec 37%, var(--secondary) 63%);
+    background-size: 400% 100%;
+    animation: var(--animate-shimmer);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .skeleton {
+      animation: none;
+      background: var(--secondary);
+    }
   }
 }

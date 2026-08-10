@@ -157,7 +157,7 @@ export default function AnswerPage({
                           <CitationList citations={response.citations} />
                         ) : (
                           <div>
-                            <StatusBadge tone="warning" dot>
+                            <StatusBadge tone="neutral" icon="alert">
                               No relevant context
                             </StatusBadge>
                           </div>
@@ -180,7 +180,7 @@ export default function AnswerPage({
                     {response.has_context ? (
                       <AssistantBody text={response.answer} />
                     ) : (
-                      <div className="rounded-md border border-[#e6dcc4] bg-[#fbf8f1] px-4 py-3 text-[14.5px] leading-relaxed text-subtle-foreground">
+                      <div className="rounded-md border border-border-strong bg-secondary px-4 py-3 text-[14.5px] leading-relaxed text-subtle-foreground">
                         {response.answer}
                       </div>
                     )}

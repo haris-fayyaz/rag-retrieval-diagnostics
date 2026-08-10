@@ -6,6 +6,7 @@ import DocumentList from '../components/DocumentList'
 import ErrorMessage from '../components/ErrorMessage'
 import Input from '../components/Input'
 import Textarea from '../components/Textarea'
+import { CheckIcon } from '../components/icons'
 
 export default function DocumentsPage({
   documents,
@@ -81,7 +82,8 @@ export default function DocumentsPage({
 
               {error && <ErrorMessage message={error} />}
               {created && (
-                <p className="rounded-md border border-[#cfdacf] bg-[#f1f5f0] px-3.5 py-2.5 text-[13px] text-success">
+                <p className="animate-fade-in flex items-center gap-2 rounded-md border border-border bg-secondary px-3.5 py-2.5 text-[13px] text-foreground">
+                  <CheckIcon width={13} height={13} strokeWidth={1.8} className="shrink-0" />
                   {created}
                 </p>
               )}

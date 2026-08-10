@@ -10,11 +10,14 @@ import StatusBadge from '../components/StatusBadge'
 import Textarea from '../components/Textarea'
 import UserMessage from '../components/UserMessage'
 
-const STATUS_TONE: Record<AgentResponse['status'], 'success' | 'warning' | 'error'> = {
-  success: 'success',
-  no_context: 'warning',
-  refused: 'warning',
-  tool_error: 'error',
+/** Severity is read through grayscale weight + icon, not hue: solid+check
+ *  for the good outcome, solid+alert for a hard failure, neutral+alert for
+ *  the softer "nothing came back" outcomes. */
+const STATUS_STYLE: Record<AgentResponse['status'], { tone: 'neutral' | 'solid'; icon: 'check' | 'alert' }> = {
+  success: { tone: 'solid', icon: 'check' },
+  no_context: { tone: 'neutral', icon: 'alert' },
+  refused: { tone: 'neutral', icon: 'alert' },
+  tool_error: { tone: 'solid', icon: 'alert' },
 }
 
 export default function AgentPage({ onOpenNav }: { onOpenNav: () => void }) {
@@ -50,7 +53,7 @@ export default function AgentPage({ onOpenNav }: { onOpenNav: () => void }) {
         onMenuClick={onOpenNav}
         aside={
           <div className="hidden sm:block">
-            <StatusBadge tone="accent">/agent/query</StatusBadge>
+            <StatusBadge tone="neutral">/agent/query</StatusBadge>
           </div>
         }
       />
@@ -82,8 +85,8 @@ export default function AgentPage({ onOpenNav }: { onOpenNav: () => void }) {
               {running ? (
                 <p className="flex items-center gap-2.5 pl-[34px] text-[14px] text-subtle-foreground">
                   <span className="relative flex h-1.5 w-1.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-70" />
-                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-foreground opacity-60" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-foreground" />
                   </span>
                   Running agent...
                 </p>
@@ -93,10 +96,10 @@ export default function AgentPage({ onOpenNav }: { onOpenNav: () => void }) {
                     footer={
                       <>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <StatusBadge tone={STATUS_TONE[result.status]} dot>
+                          <StatusBadge tone={STATUS_STYLE[result.status].tone} icon={STATUS_STYLE[result.status].icon}>
                             {result.status}
                           </StatusBadge>
-                          <StatusBadge tone="accent">Tool · {result.tool}</StatusBadge>
+                          <StatusBadge tone="neutral">Tool · {result.tool}</StatusBadge>
                           <StatusBadge>
                             {result.steps} {result.steps === 1 ? 'step' : 'steps'}
                           </StatusBadge>

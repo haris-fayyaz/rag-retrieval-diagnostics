@@ -57,6 +57,15 @@ export const CheckIcon = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
+/** Neutral alert glyph. Severity is communicated by surrounding weight
+ *  (solid vs outline treatment), not by recoloring this icon. */
+export const AlertIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}>
+    <circle cx="8" cy="8" r="6" />
+    <path d="M8 5v3.5M8 11h.01" />
+  </svg>
+)
+
 export const DotsIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)} strokeWidth={1.8}>
     <path d="M4 8h.01M8 8h.01M12 8h.01" />
@@ -76,11 +85,21 @@ export const LogoutIcon = (p: SVGProps<SVGSVGElement>) => (
   </svg>
 )
 
-/** Application mark: three stacked rules of decreasing width — retrieval
- *  narrowing to an answer. Deliberately geometric, no AI iconography. */
+/** Application mark: a document with a single node linked to it — the
+ *  retrieval layer surfacing one grounded point from a source. Deliberately
+ *  literal about what the product does, geometric, no AI iconography. */
 export const AppMark = ({ className = '' }: { className?: string }) => (
   <svg width="22" height="22" viewBox="0 0 22 22" className={className} aria-hidden="true">
     <rect x="1" y="1" width="20" height="20" rx="4" fill="currentColor" />
-    <path d="M6 7.5h10M6 11h7M6 14.5h4" stroke="#fff" strokeWidth="1.4" strokeLinecap="round" />
+    <path
+      d="M6.5 5.5h5l2 2v8a1 1 0 0 1-1 1h-6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1Z"
+      stroke="#fff"
+      strokeWidth="1.3"
+      strokeLinejoin="round"
+      fill="none"
+    />
+    <path d="M11.5 5.5v2h2" stroke="#fff" strokeWidth="1.3" strokeLinejoin="round" fill="none" />
+    <path d="M9.5 12.5 13.5 16.5" stroke="#fff" strokeWidth="1.2" strokeLinecap="round" />
+    <circle cx="14.3" cy="17.3" r="1.5" fill="#fff" />
   </svg>
 )

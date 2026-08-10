@@ -19,8 +19,8 @@ export default function LoadingState({ phase }: { phase: LoadingPhase }) {
         </p>
         <p className="flex items-center gap-2.5 text-[14px] text-subtle-foreground" aria-live="polite">
           <span className="relative flex h-1.5 w-1.5">
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-70" />
-            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-accent" />
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-foreground opacity-60" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-foreground" />
           </span>
           {copy[phase]}
         </p>
