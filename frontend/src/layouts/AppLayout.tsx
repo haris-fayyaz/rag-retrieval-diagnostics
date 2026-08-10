@@ -43,9 +43,9 @@ export default function AppLayout({
           <button
             aria-label="Close navigation"
             onClick={onCloseNav}
-            className="absolute inset-0 bg-black/25"
+            className="animate-fade-in absolute inset-0 bg-black/25"
           />
-          <div className="absolute inset-y-0 left-0 w-[272px]">
+          <div className="animate-slide-in-left absolute inset-y-0 left-0 w-[272px]">
             <Sidebar view={view} username={username} onNavigate={navigate} onNewChat={onNewChat} onLogout={onLogout} />
           </div>
         </div>
