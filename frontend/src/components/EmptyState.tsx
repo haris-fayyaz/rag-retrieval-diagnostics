@@ -10,7 +10,7 @@ export default function EmptyState({
   onSuggestionClick?: (suggestion: string) => void
 }) {
   return (
-    <div className="flex flex-col items-center px-6 text-center">
+    <div className="animate-fade-in flex flex-col items-center px-6 text-center">
       <h2 className="text-[26px] font-semibold tracking-[-0.02em] text-foreground">{title}</h2>
       <p className="mt-2.5 max-w-[420px] text-[14px] leading-relaxed text-muted-foreground">
         {description}

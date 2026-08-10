@@ -9,7 +9,7 @@ export default function ErrorMessage({
   return (
     <div
       role="alert"
-      className={`flex items-start gap-2.5 rounded-md border border-[#e5cfcd] bg-[#faf0ef] px-3.5 py-2.5 text-[13px] leading-relaxed text-error ${className}`}
+      className={`animate-fade-in flex items-start gap-2.5 rounded-md border border-[#e5cfcd] bg-[#faf0ef] px-3.5 py-2.5 text-[13px] leading-relaxed text-error ${className}`}
     >
       <svg
         width="15"
