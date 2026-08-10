@@ -9,7 +9,7 @@ const copy: Record<LoadingPhase, string> = {
 
 export default function LoadingState({ phase }: { phase: LoadingPhase }) {
   return (
-    <div className="flex gap-3.5">
+    <div className="animate-fade-in flex gap-3.5">
       <span className="mt-[2px] shrink-0 text-primary">
         <AppMark />
       </span>
@@ -24,6 +24,13 @@ export default function LoadingState({ phase }: { phase: LoadingPhase }) {
           </span>
           {copy[phase]}
         </p>
+        {phase === 'generating' && (
+          <div className="mt-4 space-y-2.5" aria-hidden="true">
+            <div className="skeleton h-3 w-[92%] rounded" />
+            <div className="skeleton h-3 w-[78%] rounded" />
+            <div className="skeleton h-3 w-[85%] rounded" />
+          </div>
+        )}
       </div>
     </div>
   )

@@ -342,7 +342,7 @@ async function mockRequest<T>(path: string, init: RequestInit): Promise<T> {
           generation_ms: null,
           total_ms: 38,
           retrieved_chunk_count: 0,
-          retrieval_mode: 'tfidf',
+          retrieval_mode: body.retrieval_mode ?? 'tfidf',
           provider: 'fake',
         },
       } as T
@@ -373,7 +373,7 @@ async function mockRequest<T>(path: string, init: RequestInit): Promise<T> {
         generation_ms: 1840,
         total_ms: 1882,
         retrieved_chunk_count: retrieved_chunks.length,
-        retrieval_mode: 'tfidf',
+        retrieval_mode: body.retrieval_mode ?? 'tfidf',
         provider: 'fake',
       },
     } as T
