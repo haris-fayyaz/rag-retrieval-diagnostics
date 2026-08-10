@@ -203,6 +203,10 @@ export default function AnswerPage({
                 documents={documents}
                 selectedIds={selectedIds}
                 topK={topK}
+                retrievalMode={retrievalMode}
+                onRetrievalModeChange={onRetrievalModeChange}
+                pipelineMode={pipelineMode}
+                onPipelineModeChange={onPipelineModeChange}
                 onToggleSource={onToggleSource}
                 onTopKChange={onTopKChange}
                 onManageDocuments={onManageDocuments}
