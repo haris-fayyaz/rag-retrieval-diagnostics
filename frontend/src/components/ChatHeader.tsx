@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import { DotsIcon } from './icons'
 
 export default function ChatHeader({
   title,
@@ -19,7 +18,7 @@ export default function ChatHeader({
         <button
           onClick={onMenuClick}
           aria-label="Open navigation"
-          className="-ml-1 flex h-9 w-9 items-center justify-center rounded-md text-subtle-foreground transition-colors hover:bg-secondary md:hidden"
+          className="-ml-1 flex h-11 w-11 items-center justify-center rounded-md text-subtle-foreground transition-colors hover:bg-secondary md:hidden"
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
             <path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11" />
@@ -33,13 +32,6 @@ export default function ChatHeader({
       </div>
 
       {aside}
-
-      <button
-        aria-label="Options"
-        className="flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-      >
-        <DotsIcon />
-      </button>
     </header>
   )
 }
