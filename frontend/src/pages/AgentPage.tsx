@@ -10,6 +10,13 @@ import StatusBadge from '../components/StatusBadge'
 import Textarea from '../components/Textarea'
 import UserMessage from '../components/UserMessage'
 
+const STATUS_TONE: Record<AgentResponse['status'], 'success' | 'warning' | 'error'> = {
+  success: 'success',
+  no_context: 'warning',
+  refused: 'warning',
+  tool_error: 'error',
+}
+
 export default function AgentPage({ onOpenNav }: { onOpenNav: () => void }) {
   const [question, setQuestion] = useState('')
   const [asked, setAsked] = useState<string | null>(null)
@@ -86,10 +93,7 @@ export default function AgentPage({ onOpenNav }: { onOpenNav: () => void }) {
                     footer={
                       <>
                         <div className="flex flex-wrap items-center gap-1.5">
-                          <StatusBadge
-                            tone={result.status === 'success' ? 'success' : 'warning'}
-                            dot
-                          >
+                          <StatusBadge tone={STATUS_TONE[result.status]} dot>
                             {result.status}
                           </StatusBadge>
                           <StatusBadge tone="accent">Tool · {result.tool}</StatusBadge>
