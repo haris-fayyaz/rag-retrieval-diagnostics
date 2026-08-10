@@ -34,7 +34,7 @@ export default function Disclosure({
           </>
         )}
       </button>
-      {open && <div className="border-t border-border px-3.5 py-3.5">{children}</div>}
+      {open && <div className="animate-slide-up border-t border-border px-3.5 py-3.5">{children}</div>}
     </div>
   )
 }

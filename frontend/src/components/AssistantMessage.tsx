@@ -89,7 +89,7 @@ export default function AssistantMessage({
   footer?: ReactNode
 }) {
   return (
-    <div className="flex gap-3.5">
+    <div className="animate-slide-up flex gap-3.5">
       <span className="mt-[2px] shrink-0 text-primary">
         <AppMark />
       </span>

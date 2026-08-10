@@ -78,7 +78,7 @@ export default function SourceSelector({
       ref={ref}
       role="dialog"
       aria-label="Add sources"
-      className="absolute bottom-[calc(100%+10px)] left-0 z-20 w-[336px] overflow-hidden rounded-lg border border-border bg-background shadow-[0_12px_28px_-18px_rgba(0,0,0,0.28)]"
+      className="animate-scale-in absolute bottom-[calc(100%+10px)] left-0 z-20 w-[336px] origin-bottom-left overflow-hidden rounded-lg border border-border bg-background shadow-[0_12px_28px_-18px_rgba(0,0,0,0.28)]"
     >
       <div className="flex items-baseline justify-between border-b border-border px-4 py-3">
         <h3 className="text-[13.5px] font-semibold">Add sources</h3>
