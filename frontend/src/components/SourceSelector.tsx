@@ -127,6 +127,7 @@ export default function SourceSelector({
       }`}
     >
       <div className="flex shrink-0 items-baseline justify-between border-b border-border px-4 py-3">
+        <h3 className="text-[13.5px] font-semibold">Add sources</h3>
         <span className="font-mono text-[11px] text-muted-foreground">
           {selectedIds.length}/{documents.length}
         </span>
