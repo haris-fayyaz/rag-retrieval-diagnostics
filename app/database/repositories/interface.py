@@ -1,6 +1,6 @@
 from typing import List, Optional, Protocol
 
-from app.models import Chunk, DocumentResponse, ReindexResponse, AnswerRunResponse
+from app.models import Chunk, DocumentResponse, ReindexResponse, AnswerRunResponse, SupersedeResponse
 
 
 class DocumentRepository(Protocol):
@@ -40,8 +40,18 @@ class DocumentRepository(Protocol):
         """List all stored documents with their chunk counts."""
         ...
 
-    def get_chunks(self, document_ids: Optional[List[str]] = None) -> List[Chunk]:
-        """Return chunks for the given document_ids, or all chunks if document_ids is None."""
+    def get_document_versions(self, document_ids: List[str]) -> List[DocumentResponse]:
+        """
+        Return version metadata (policy_name, version, effective_date,
+        status) for the given document_ids, one DocumentResponse per
+        existing document - unknown IDs are silently skipped, not errors
+        (mirrors get_chunks' 'unknown ID matches nothing' behavior).
+
+        Used by the version-aware filtering service (Task 25) to look up
+        the status of documents represented in a candidate chunk set,
+        without needing get_chunks itself to know anything about
+        versioning - retrieval and version metadata stay decoupled.
+        """
         ...
 
     def reindex_document(self, document_id: str, chunker) -> ReindexResponse:
@@ -58,6 +68,22 @@ class DocumentRepository(Protocol):
         """
         ...
 
+    def supersede_document(self, document_id: str, superseded_by: str) -> SupersedeResponse:
+        """
+        Mark document_id as 'superseded' and superseded_by as 'active',
+        in one transaction (Task 25). Does not delete either document or
+        their chunks - both remain queryable, including document_id by
+        explicit historical lookup.
+
+        Does not persist which document superseded which beyond the
+        status flip itself - out of scope for this task, see
+        docs/version-aware-retrieval.md for the tradeoff.
+
+        Raises ValueError (mapped to a 4xx by the caller) if either ID
+        doesn't exist, or if document_id == superseded_by.
+        """
+        ...
+        
     def save_answer_run(
         self,
         request_id: str,
