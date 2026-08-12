@@ -55,3 +55,15 @@ services:
       retries: 3
       start_period: 5s
     restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rag-frontend
+    ports:
+      - "8443:8443"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped

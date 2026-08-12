@@ -15,3 +15,4 @@ frontend/.env
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+frontend/package-lock.json
