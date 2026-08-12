@@ -11,6 +11,7 @@ from app.models import (
     DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse,
     AnswerRequest, AnswerResponse, ReindexResponse, AnswerRunResponse,
     TokenRequest, TokenResponse, AgentQueryRequest, AgentQueryResponse,
+    SupersedeRequest, SupersedeResponse,
 )
 from app.core.security import verify_password, create_access_token, decode_access_token
 from app.core.rate_limit import rate_limit
@@ -235,6 +236,34 @@ def reindex_document(document_id: str, repo: DocumentRepository = Depends(get_re
 
     try:
         return repo.reindex_document(document_id, chunk_text)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.post(
+    "/documents/{document_id}/supersede",
+    response_model=SupersedeResponse,
+    dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
+)
+def supersede_document(
+    document_id: str,
+    request: SupersedeRequest,
+    repo: DocumentRepository = Depends(get_repository),
+    user: str = Depends(get_current_user),
+):
+    """
+    Mark document_id as superseded and request.superseded_by as active,
+    in one transaction (Task 25). Neither document is deleted - both
+    remain queryable, including document_id by explicit historical
+    lookup via /ask or /answer's document_ids.
+
+    400 if either ID doesn't exist, or if document_id == superseded_by -
+    repo.supersede_document raises ValueError for both cases, mapped to
+    the same status code here (see its own docstring for the exact
+    error messages).
+    """
+    try:
+        return repo.supersede_document(document_id, request.superseded_by)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
