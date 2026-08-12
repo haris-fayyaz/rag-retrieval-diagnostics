@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.database.models import AnswerRunORM, ChunkORM, DocumentORM
 from app.database.session import make_engine
-from app.models import AnswerRunResponse, Chunk, DocumentResponse, ReindexResponse
+from app.models import AnswerRunResponse, Chunk, DocumentResponse, ReindexResponse, SupersedeResponse
 
 
 class SQLiteDocumentRepository:
@@ -38,13 +38,37 @@ class SQLiteDocumentRepository:
                 )
             session.commit()
 
-    def create_document_with_chunks(self, name: str, text: str, chunker) -> DocumentResponse:
+    def create_document_with_chunks(
+        self,
+        name: str,
+        text: str,
+        chunker,
+        policy_name: Optional[str] = None,
+        version: Optional[str] = None,
+        effective_date: Optional[str] = None,
+        status: Optional[str] = None,
+    ) -> DocumentResponse:
         if not text.strip():
             raise ValueError("Document text cannot be empty")
 
+        # status resolved to "active" here explicitly, not left to the
+        # ORM column default - SQLAlchemy's column default only fires
+        # when no value is assigned at all. DocumentCreate.status is
+        # None when the caller omits it, and passing status=None
+        # explicitly into DocumentORM() counts as "a value was
+        # assigned", which would insert NULL instead of "active".
+        resolved_status = status if status is not None else "active"
+
         with self.SessionLocal() as session:
             try:
-                document = DocumentORM(name=name, original_text=text)
+                document = DocumentORM(
+                    name=name,
+                    original_text=text,
+                    policy_name=policy_name,
+                    version=version,
+                    effective_date=effective_date,
+                    status=resolved_status,
+                )
                 session.add(document)
                 # flush (not commit) assigns document.id via the DB's
                 # autoincrement, without ending the transaction - so the
@@ -60,7 +84,13 @@ class SQLiteDocumentRepository:
 
                 session.commit()
                 return DocumentResponse(
-                    document_id=str(document.id), name=name, chunk_count=len(chunks)
+                    document_id=str(document.id),
+                    name=name,
+                    chunk_count=len(chunks),
+                    policy_name=document.policy_name,
+                    version=document.version,
+                    effective_date=document.effective_date,
+                    status=document.status,
                 )
             except Exception:
                 session.rollback()
@@ -85,6 +115,10 @@ class SQLiteDocumentRepository:
                     document_id=str(document.id),
                     name=document.name,
                     chunk_count=len(document.chunks),
+                    policy_name=document.policy_name,
+                    version=document.version,
+                    effective_date=document.effective_date,
+                    status=document.status,
                 )
                 for document in documents
             ]
@@ -105,6 +139,25 @@ class SQLiteDocumentRepository:
             return chunks
         
         
+    def get_document_versions(self, document_ids: List[str]) -> List[DocumentResponse]:
+        with self.SessionLocal() as session:
+            numeric_ids = self._parse_ids(document_ids)
+            if not numeric_ids:
+                return []
+            documents = session.query(DocumentORM).filter(DocumentORM.id.in_(numeric_ids)).all()
+            return [
+                DocumentResponse(
+                    document_id=str(document.id),
+                    name=document.name,
+                    chunk_count=len(document.chunks),
+                    policy_name=document.policy_name,
+                    version=document.version,
+                    effective_date=document.effective_date,
+                    status=document.status,
+                )
+                for document in documents
+            ]
+
     def reindex_document(self, document_id: str, chunker) -> ReindexResponse:
         with self.SessionLocal() as session:
             document = self._get_document_orm(session, document_id)
@@ -212,7 +265,34 @@ class SQLiteDocumentRepository:
                 created_at=run.created_at,
             )
             
-            
+    def supersede_document(self, document_id: str, superseded_by: str) -> SupersedeResponse:
+        with self.SessionLocal() as session:
+            try:
+                old_document = self._get_document_orm(session, document_id)
+                if old_document is None:
+                    raise ValueError(f"Document '{document_id}' not found")
+
+                new_document = self._get_document_orm(session, superseded_by)
+                if new_document is None:
+                    raise ValueError(f"Document '{superseded_by}' not found")
+
+                if old_document.id == new_document.id:
+                    raise ValueError("A document cannot supersede itself")
+
+                old_document.status = "superseded"
+                new_document.status = "active"
+                session.commit()
+
+                return SupersedeResponse(
+                    document_id=str(old_document.id),
+                    status=old_document.status,
+                    superseded_by=str(new_document.id),
+                    new_status=new_document.status,
+                )
+            except Exception:
+                session.rollback()
+                raise       
+    
             
     # -- internal helpers -------------------------------------------------
 
