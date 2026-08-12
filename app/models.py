@@ -97,7 +97,10 @@ class AskRequest(BaseModel):
     question: str
     top_k: int = 3
     document_ids: Optional[List[str]] = None
-    min_score: float = 0.0
+    # 0.0 let zero-overlap chunks (score == 0, e.g. "Hi") still pass through
+    # as "top_k results" even though they share no vocabulary with the
+    # question at all. A small positive floor filters those out by default.
+    min_score: float = 0.05
     retrieval_mode: str = "tfidf"  # "tfidf" or "semantic"
     
     @field_validator("question")
@@ -141,7 +144,10 @@ class AnswerRequest(BaseModel):
     question: str
     top_k: int = 3
     document_ids: Optional[List[str]] = None
-    min_score: float = 0.0
+    # 0.0 let zero-overlap chunks (score == 0, e.g. "Hi") still pass through
+    # as "top_k results" even though they share no vocabulary with the
+    # question at all. A small positive floor filters those out by default.
+    min_score: float = 0.05
     retrieval_mode: str = "tfidf"  # "tfidf", "semantic", or "hybrid"
     # "custom" (default, existing hand-rolled prompt/provider path) or
     # "langchain" (optional LCEL pipeline - see app/chains/). A Literal
@@ -172,14 +178,21 @@ class AnswerRequest(BaseModel):
         return _validate_document_ids(value)
 
 class AnswerChunkRef(BaseModel):
-    """Slim source reference for /answer responses - just enough to
-    identify and cite a chunk. Deliberately excludes text_preview:
-    the answer already contains the grounded text, so echoing full
-    chunk content back would be redundant."""
+    """Slim source reference for /answer responses - enough to
+    identify, cite, and preview a chunk without echoing the full text
+    back (the answer already contains the grounded content in full).
+
+    text_snippet, not text_preview: Chunk.text_preview elsewhere in
+    this file holds the FULL chunk text despite its name (retrieval/
+    prompt building need the whole thing). This field is genuinely
+    truncated, a different name avoids the same word meaning two
+    different things in this same module.
+    """
     chunk_id: str
     document_id: str
     document_name: str
     score: float
+    text_snippet: str
 
 class AnswerMetadata(BaseModel):
     """
@@ -249,6 +262,17 @@ class AgentQueryRequest(BaseModel):
     def check_document_ids(cls, value: Optional[List[str]]) -> Optional[List[str]]:
         return _validate_document_ids(value)
 
+class AgentCitation(BaseModel):
+    """
+    One citation from /agent/query. Unlike AnswerResponse.citations
+    (plain chunk_id strings), this carries document_id/document_name
+    alongside the chunk_id, so a caller can render a source without a
+    second lookup back to the document store.
+    """
+    chunk_id: str
+    document_id: str
+    document_name: str
+
 class AgentQueryResponse(BaseModel):
     """
     Response from POST /agent/query.
@@ -256,14 +280,14 @@ class AgentQueryResponse(BaseModel):
     answer is always a plain string, never None - generate_response_node
     in the graph always produces a human-readable message, including
     for refusals ("I can only search...") and tool errors ("Something
-    went wrong: ..."), unlike AnswerResponse where answer can be None.
+    went wrong: ...")Unlike AnswerResponse where answer can be None.
     """
     request_id: str
     answer: str
     # None only when the router refused the request (status="refused") -
     # otherwise one of: search_documents, list_documents, get_answer_run
     selected_tool: Optional[str] = None
-    citations: List[str] = []
+    citations: List[AgentCitation] = []
     step_count: int
     status: str  # "success" | "no_context" | "refused" | "tool_error"
     # Raw error detail, already folded into `answer` as human-readable

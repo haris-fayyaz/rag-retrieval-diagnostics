@@ -113,6 +113,21 @@ def _record_audit(repo: DocumentRepository, request_id: str, **fields) -> None:
     except Exception as e:
         log_event(logger, "audit_write_failed", request_id=request_id, error_type=type(e).__name__)
 
+def _truncate_at_word_boundary(text: str, max_length: int = 200) -> str:
+    """
+    Cut text to at most max_length characters, ending on a full word,
+    never mid-word. Only used for AnswerChunkRef.text_snippet - a
+    local, display-only value, not stored anywhere and not sent to
+    the model (that still uses the full chunk.text_preview).
+    """
+    if len(text) <= max_length:
+        return text
+    truncated = text[:max_length]
+    last_space = truncated.rfind(" ")
+    if last_space > 0:
+        truncated = truncated[:last_space]
+    return truncated.rstrip() + "..."
+
 def generate_answer(
     request: AnswerRequest,
     repo: DocumentRepository,
@@ -256,10 +271,11 @@ def generate_answer(
         citations=citations,
         retrieved_chunks=[
             AnswerChunkRef(
-                chunk_id=chunk.chunk_id,
+               chunk_id=chunk.chunk_id,
                 document_id=chunk.document_id,
                 document_name=chunk.document_name,
                 score=chunk.score,
+                text_snippet=_truncate_at_word_boundary(chunk.text_preview),
             )
             for chunk in retrieved
         ],

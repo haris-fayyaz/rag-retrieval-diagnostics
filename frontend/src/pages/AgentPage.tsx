@@ -1,0 +1,129 @@
+import { useState, type FormEvent } from 'react'
+import { ApiError, api, type AgentResponse } from '../api/client'
+import AssistantMessage, { AssistantBody } from '../components/AssistantMessage'
+import Button from '../components/Button'
+import ChatHeader from '../components/ChatHeader'
+import CitationList from '../components/CitationList'
+import DiagnosticDetails from '../components/DiagnosticDetails'
+import ErrorMessage from '../components/ErrorMessage'
+import StatusBadge from '../components/StatusBadge'
+import Textarea from '../components/Textarea'
+import UserMessage from '../components/UserMessage'
+
+/** Severity is read through grayscale weight + icon, not hue: solid+check
+ *  for the good outcome, solid+alert for a hard failure, neutral+alert for
+ *  the softer "nothing came back" outcomes. */
+const STATUS_STYLE: Record<AgentResponse['status'], { tone: 'neutral' | 'solid'; icon: 'check' | 'alert' }> = {
+  success: { tone: 'solid', icon: 'check' },
+  no_context: { tone: 'neutral', icon: 'alert' },
+  refused: { tone: 'neutral', icon: 'alert' },
+  tool_error: { tone: 'solid', icon: 'alert' },
+}
+
+export default function AgentPage({ onOpenNav }: { onOpenNav: () => void }) {
+  const [question, setQuestion] = useState('')
+  const [asked, setAsked] = useState<string | null>(null)
+  const [result, setResult] = useState<AgentResponse | null>(null)
+  const [running, setRunning] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(event: FormEvent) {
+    event.preventDefault()
+    const text = question.trim()
+    if (!text || running) return
+
+    setRunning(true)
+    setError(null)
+    setResult(null)
+    setAsked(text)
+    try {
+      setResult(await api.agentQuery(text))
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : 'Something went wrong. Please try again.')
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <div className="flex h-full min-w-0 flex-col">
+      <ChatHeader
+        title="Agent query"
+        subtitle="The assistant selects a tool and answers in a single run"
+        onMenuClick={onOpenNav}
+        aside={
+          <div className="hidden sm:block">
+            <StatusBadge tone="neutral">/agent/query</StatusBadge>
+          </div>
+        }
+      />
+
+      <div className="scroll-quiet min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto flex w-full max-w-[860px] flex-col gap-8 px-5 py-8 md:px-8">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
+            <Textarea
+              id="agent-question"
+              label="Question"
+              placeholder="Ask the agent..."
+              rows={3}
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+            />
+            <div>
+              <Button type="submit" disabled={running || !question.trim()}>
+                {running ? 'Running agent...' : 'Run agent'}
+              </Button>
+            </div>
+          </form>
+
+          {error && <ErrorMessage message={error} />}
+
+          {asked && (
+            <div className="flex flex-col gap-8 border-t border-border pt-8">
+              <UserMessage text={asked} />
+
+              {running ? (
+                <p className="flex items-center gap-2.5 pl-[34px] text-[14px] text-subtle-foreground">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-foreground opacity-60" />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-foreground" />
+                  </span>
+                  Running agent...
+                </p>
+              ) : (
+                result && (
+                  <AssistantMessage
+                    footer={
+                      <>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <StatusBadge tone={STATUS_STYLE[result.status].tone} icon={STATUS_STYLE[result.status].icon}>
+                            {result.status}
+                          </StatusBadge>
+                          <StatusBadge tone="neutral">Tool · {result.tool}</StatusBadge>
+                          <StatusBadge>
+                            {result.steps} {result.steps === 1 ? 'step' : 'steps'}
+                          </StatusBadge>
+                        </div>
+                        <CitationList citations={result.citations} />
+                        <DiagnosticDetails
+                          requestId={result.request_id}
+                          extra={[
+                            { label: 'Selected tool', value: result.tool },
+                            { label: 'Steps', value: String(result.steps) },
+                            { label: 'Status', value: result.status },
+                          ]}
+                        />
+                      </>
+                    }
+                  >
+                    <AssistantBody text={result.answer} />
+                  </AssistantMessage>
+                )
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}

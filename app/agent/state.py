@@ -27,7 +27,10 @@ class AgentState(TypedDict):
 
     # --- Written by the response-generation node ---
     answer: Optional[str]
-    citations: List[str]  # chunk_ids, sourced only from tool_result - never model text
+    
+     # AgentCitation-shaped dicts (chunk_id, document_id, document_name),
+    # sourced only from tool_result - never model text
+    citations: List[dict]
 
     # --- Written by every node, checked at each step ---
     status: str  # "success" | "no_context" | "refused" | "tool_error"

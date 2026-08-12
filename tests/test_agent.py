@@ -165,11 +165,13 @@ def test_citations_only_from_tool_results(client):
     response = test_client.post("/agent/query", json={"query": "What is the laptop reimbursement limit?"})
     body = response.json()
 
-    # every citation must be a chunk_id that was actually retrieved -
-    # verified by checking it matches the real document's chunk shape,
-    # not just asserting a non-empty list
+    # every citation must carry a chunk_id that was actually retrieved,
+    # plus the document metadata attached to it - verified against the
+    # real document's chunk shape, not just a non-empty list
     for citation in body["citations"]:
-        assert citation.startswith("1_chunk_")  # first (only) document's chunk ID prefix
+        assert citation["chunk_id"].startswith("1_chunk_")  # first (only) document's chunk ID prefix
+        assert citation["document_id"]
+        assert citation["document_name"]
 
     # list_documents and refused paths never produce citations at all
     list_response = test_client.post("/agent/query", json={"query": "list available documents"})
