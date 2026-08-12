@@ -318,7 +318,7 @@ def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository),
 
 @app.post(
     "/answer", 
-    response_model=AnswerResponse,
+    response_model=Union[AnswerResponse, AmbiguousPolicyVersionResponse],
     dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
 )
 def answer(
