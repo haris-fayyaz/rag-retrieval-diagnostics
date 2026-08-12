@@ -7,12 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from langchain_core.language_models.chat_models import BaseChatModel
 import jwt
 import uuid
+from typing import Union
 from app.models import (
     DocumentCreate, DocumentResponse, AskRequest, AskResponse, HealthResponse,
     AnswerRequest, AnswerResponse, ReindexResponse, AnswerRunResponse,
     TokenRequest, TokenResponse, AgentQueryRequest, AgentQueryResponse,
-    SupersedeRequest, SupersedeResponse,
+    SupersedeRequest, SupersedeResponse, AmbiguousPolicyVersionResponse,
 )
+from app.services.version_filter import apply_version_filter
 from app.core.security import verify_password, create_access_token, decode_access_token
 from app.core.rate_limit import rate_limit
 from app.database.repositories.interface import DocumentRepository
@@ -270,7 +272,7 @@ def supersede_document(
 
 @app.post(
     "/ask", 
-    response_model=AskResponse,
+    response_model=Union[AskResponse, AmbiguousPolicyVersionResponse],
     dependencies=[Depends(rate_limit(settings.rate_limit_auth_token, get_current_user))],
 )
 def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository), user: str = Depends(get_current_user)):
@@ -287,7 +289,16 @@ def ask(request: AskRequest, repo: DocumentRepository = Depends(get_repository),
 
     if not all_chunks:
         raise HTTPException(status_code=404, detail="No chunks found")
-    
+
+    # Version-aware filtering - applied to the candidate set
+    # BEFORE retrieval scoring, per the shared rule in version_filter.py.
+    filter_result = apply_version_filter(all_chunks, request.document_ids, repo)
+    if filter_result.ambiguity is not None:
+        return filter_result.ambiguity
+    all_chunks = filter_result.chunks
+
+    if not all_chunks:
+        raise HTTPException(status_code=404, detail="No chunks found")
 
     # Choose retrieval mode and retrieve with threshold
     retriever = get_retriever(request.retrieval_mode)
