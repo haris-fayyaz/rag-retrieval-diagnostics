@@ -30,6 +30,21 @@ class DocumentORM(Base):
         default=lambda: datetime.now(timezone.utc)
     )
 
+    # Version-aware policy retrieval metadata (Task 25). All nullable -
+    # existing documents have none of this and must keep working as
+    # unversioned documents. effective_date is stored as an ISO string
+    # ("2026-01-01"), not a Date column - no NL date parsing is in scope,
+    # and ISO strings sort correctly for the deterministic resolution
+    # rule without needing date parsing logic.
+    policy_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    version: Mapped[str | None] = mapped_column(String, nullable=True)
+    effective_date: Mapped[str | None] = mapped_column(String, nullable=True)
+    # "active" | "superseded". Nullable at the DB level for old rows,
+    # but new inserts default to "active" via the Python-side default.
+    status: Mapped[str | None] = mapped_column(
+        String, nullable=True, default="active"
+    )
+
     chunks: Mapped[list["ChunkORM"]] = relationship(
         back_populates="document",
         cascade="all, delete-orphan",
