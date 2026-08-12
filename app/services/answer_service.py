@@ -6,7 +6,8 @@ from app.core.logging import get_logger, log_event
 from app.database.repositories.interface import DocumentRepository
 from app.llm.exceptions import LLMPermanentError, LLMTemporaryError
 from app.llm.provider import LLMProvider
-from app.models import AnswerChunkRef, AnswerRequest, AnswerResponse, AnswerMetadata
+from app.models import AnswerChunkRef, AnswerRequest, AnswerResponse, AnswerMetadata, AmbiguousPolicyVersionResponse
+from app.services.version_filter import apply_version_filter
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
@@ -134,9 +135,16 @@ def generate_answer(
     provider: LLMProvider,
     request_id: str,
     langchain_model: BaseChatModel | None = None,
-) -> AnswerResponse:
+) -> AnswerResponse | AmbiguousPolicyVersionResponse:
     """
     Question -> retrieve -> reject if no chunks -> grounded prompt -> LLM -> answer.
+
+    Also returns an AmbiguousPolicyVersionResponse instead of the above
+    (Task 25) if request.document_ids was omitted and two or more active
+    documents share a policy with no way to resolve which is current -
+    see app/services/version_filter.py. This check runs before either
+    pipeline_mode branch, so both receive the same already-resolved
+    document set.
 
     Retrieval, no-context handling, citations, and audit are identical
     regardless of request.pipeline_mode - only how the answer text
@@ -175,6 +183,21 @@ def generate_answer(
     # both are part of "how long did finding relevant context take".
     retrieval_start = time.perf_counter()
     all_chunks = repo.get_chunks(request.document_ids)
+
+    # Version-aware filtering (Task 25) - the same shared rule /ask uses,
+    # applied to the candidate set BEFORE retrieval scoring, so both
+    # pipeline_mode values (custom and langchain) receive the same
+    # already-resolved document set, per mentor guidance. Not written to
+    # the audit trail - answer_runs.status is "success"/"no_context"/
+    # "provider_error" only, and no retrieval or generation ever ran for
+    # this outcome. Documented as a limitation in
+    # docs/version-aware-retrieval.md.
+    filter_result = apply_version_filter(all_chunks, request.document_ids, repo)
+    if filter_result.ambiguity is not None:
+        log_event(logger, "ambiguous_policy_version", request_id=request_id)
+        return filter_result.ambiguity
+    all_chunks = filter_result.chunks
+
     retrieved = (
         retriever.retrieve(request.question, all_chunks, request.top_k, request.min_score)
         if all_chunks
