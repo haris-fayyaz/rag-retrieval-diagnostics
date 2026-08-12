@@ -36,6 +36,15 @@ def _validate_document_ids(value: Optional[List[str]]) -> Optional[List[str]]:
 class DocumentCreate(BaseModel):
     name: str
     text: str
+    # Version-aware policy metadata (Task 25). All optional - documents
+    # created without these behave exactly as before. status is left as
+    # None here (not defaulted to "active") rather than in this schema -
+    # the repository resolves None -> "active", the same place
+    # AnswerRunORM.pipeline_mode's default already lives.
+    policy_name: Optional[str] = None
+    version: Optional[str] = None
+    effective_date: Optional[str] = None
+    status: Optional[Literal["active", "superseded"]] = None
     
     @field_validator("name")
     @classmethod
@@ -59,11 +68,56 @@ class DocumentResponse(BaseModel):
     document_id: str
     name: str
     chunk_count: int
+    # Version-aware policy metadata (Task 25). Optional - documents
+    # without version metadata surface these as None, unchanged from
+    # before this field existed.
+    policy_name: Optional[str] = None
+    version: Optional[str] = None
+    effective_date: Optional[str] = None
+    status: Optional[str] = None
 
 class ReindexResponse(BaseModel):
     document_id: str
     previous_chunk_count: int
     new_chunk_count: int
+
+class SupersedeRequest(BaseModel):
+    """Request body for POST /documents/{document_id}/supersede. The
+    path document_id is the OLD (about to become superseded) document,
+    superseded_by is the NEW (about to become/remain active) document."""
+    superseded_by: str
+
+    @field_validator("superseded_by")
+    @classmethod
+    def check_superseded_by(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("superseded_by cannot be empty")
+        return value
+
+class SupersedeResponse(BaseModel):
+    """Result of a successful supersede operation. Echoes back both
+    documents' final status so the caller can confirm the transaction
+    without a follow-up GET."""
+    document_id: str    # the OLD document (path param), now superseded
+    status: str          # always "superseded"
+    superseded_by: str   # the NEW document's id
+    new_status: str      # always "active" - the new document's status after this op
+
+class DocumentVersionRef(BaseModel):
+    """One entry in an ambiguous-version response - deliberately slim,
+    just enough for a caller to disambiguate and retry with an explicit
+    document_id."""
+    document_id: str
+    version: Optional[str] = None
+
+class AmbiguousPolicyVersionResponse(BaseModel):
+    """Returned instead of a normal AskResponse/AnswerResponse when two
+    or more active documents share a policy_name and cannot be resolved
+    to a single current version by effective_date/version metadata. The
+    system never guesses in this case - see docs/version-aware-retrieval.md."""
+    status: Literal["ambiguous_policy_version"] = "ambiguous_policy_version"
+    message: str
+    documents: List[DocumentVersionRef]
 
 class AnswerRunResponse(BaseModel):
     """One stored audit record for a past /answer call. Mirrors
