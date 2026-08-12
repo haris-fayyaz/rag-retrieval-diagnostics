@@ -177,7 +177,15 @@ def add_document(doc: DocumentCreate, repo: DocumentRepository = Depends(get_rep
     # then save_chunks) - if the second failed, the document would be left
     # behind with zero chunks. See tests/test_persistence.py for the
     # regression test covering this.
-    return repo.create_document_with_chunks(doc.name, doc.text, chunk_text)
+    return repo.create_document_with_chunks(
+        doc.name,
+        doc.text,
+        chunk_text,
+        policy_name=doc.policy_name,
+        version=doc.version,
+        effective_date=doc.effective_date,
+        status=doc.status,
+    )
 
 """
     # Previous Implementation, Not Required
