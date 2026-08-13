@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional
 from app.core.logging import get_logger, log_event
 from app.database.repositories.interface import DocumentRepository
 from app.services.retrieval.interface import Retriever
+from app.services.version_filter import apply_version_filter
 
 logger = get_logger()
 
@@ -37,12 +38,39 @@ def search_documents(
 
     Zero matching chunks is a valid result, not an error - the caller
     decides how to present "nothing found" to the user.
+
+    Also returns an "ambiguous_policy_version" key instead of scoring
+    anything (Task 25) if document_ids was omitted and two or more
+    active documents share a policy with no way to resolve which is
+    current - same shared rule /ask and /answer use. See
+    app/services/version_filter.py.
     """
     try:
         candidate_chunks = repo.get_chunks(document_ids)
     except Exception as exc:
         log_event(logger, "tool_search_documents_failed", stage="get_chunks", error=str(exc))
         raise ToolError(f"Could not load chunks: {exc}") from exc
+
+    if not candidate_chunks:
+        return {"chunk_count": 0, "chunks": []}
+
+    # Version-aware filtering (Task 25) - same shared rule /ask and
+    # /answer use, applied here so the agent never guesses either.
+    filter_result = apply_version_filter(candidate_chunks, document_ids, repo)
+    if filter_result.ambiguity is not None:
+        log_event(logger, "tool_search_documents_ambiguous")
+        return {
+            "chunk_count": 0,
+            "chunks": [],
+            "ambiguous_policy_version": {
+                "message": filter_result.ambiguity.message,
+                "documents": [
+                    {"document_id": d.document_id, "version": d.version}
+                    for d in filter_result.ambiguity.documents
+                ],
+            },
+        }
+    candidate_chunks = filter_result.chunks
 
     if not candidate_chunks:
         return {"chunk_count": 0, "chunks": []}
