@@ -33,6 +33,6 @@ class AgentState(TypedDict):
     citations: List[dict]
 
     # --- Written by every node, checked at each step ---
-    status: str  # "success" | "no_context" | "refused" | "tool_error"
+    status: str  # "success" | "no_context" | "refused" | "tool_error" | "ambiguous_policy_version"
     step_count: int
     error: Optional[str]

@@ -343,7 +343,7 @@ class AgentQueryResponse(BaseModel):
     selected_tool: Optional[str] = None
     citations: List[AgentCitation] = []
     step_count: int
-    status: str  # "success" | "no_context" | "refused" | "tool_error"
+    status: str  # "success" | "no_context" | "refused" | "tool_error" | "ambiguous_policy_version"
     # Raw error detail, already folded into `answer` as human-readable
     # text - present here too for callers that want to branch on it
     # programmatically instead of parsing `answer`.
