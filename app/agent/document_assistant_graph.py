@@ -75,6 +75,18 @@ def build_document_assistant_graph(repo, retriever, router: QueryRouter):
         tool, result = state["selected_tool"], state["tool_result"]
 
         if tool == "search_documents":
+            if result.get("ambiguous_policy_version"):
+                amb = result["ambiguous_policy_version"]
+                versions = ", ".join(
+                    f"{d['document_id']} (version {d['version']})" if d["version"] else d["document_id"]
+                    for d in amb["documents"]
+                )
+                return {
+                    "answer": f"{amb['message']} Candidates: {versions}.",
+                    "citations": [],
+                    "status": "ambiguous_policy_version",
+                    "step_count": step,
+                }
             chunks = result["chunks"]
             if not chunks:
                 return {"answer": "No relevant chunks found.", "citations": [], "status": "no_context", "step_count": step}
