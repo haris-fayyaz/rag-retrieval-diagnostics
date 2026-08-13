@@ -1,8 +1,11 @@
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
+from app.core.logging import get_logger, log_event
 from app.database.repositories.interface import DocumentRepository
 from app.models import AmbiguousPolicyVersionResponse, Chunk, DocumentResponse, DocumentVersionRef
+
+logger = get_logger()
 
 
 @dataclass
@@ -39,11 +42,30 @@ def apply_version_filter(
       or the whole call refuses with ambiguous_policy_version - see
       docs/version-aware-retrieval.md for the exact rule and its
       tradeoffs.
+
+    Every decision point logs a structured event (never document text/
+    content, only IDs/dates/counts) so the reasoning is visible in the
+    console during a demo or when debugging a specific request.
     """
+    log_event(
+        logger,
+        "version_filter_started",
+        candidate_chunk_count=len(chunks),
+        scoped=bool(requested_document_ids),
+    )
+
     if not chunks:
+        log_event(logger, "version_filter_completed", eligible_chunk_count=0, ambiguous=False, reason="no_candidates")
         return VersionFilterResult(chunks=[], ambiguity=None)
 
     if requested_document_ids:
+        log_event(
+            logger,
+            "version_filter_explicit_bypass",
+            document_ids=requested_document_ids,
+            reason="caller_named_specific_documents",
+        )
+        log_event(logger, "version_filter_completed", eligible_chunk_count=len(chunks), ambiguous=False, reason="explicit_scope")
         return VersionFilterResult(chunks=chunks, ambiguity=None)
 
     distinct_ids = sorted({chunk.document_id for chunk in chunks}, key=int)
@@ -52,9 +74,24 @@ def apply_version_filter(
 
     eligible_ids, ambiguity = _resolve_default_candidates(version_by_id)
     if ambiguity is not None:
+        log_event(
+            logger,
+            "version_filter_completed",
+            eligible_chunk_count=0,
+            ambiguous=True,
+            ambiguous_document_ids=[d.document_id for d in ambiguity.documents],
+        )
         return VersionFilterResult(chunks=[], ambiguity=ambiguity)
 
     filtered = [c for c in chunks if c.document_id in eligible_ids]
+    excluded_ids = sorted({c.document_id for c in chunks if c.document_id not in eligible_ids}, key=int)
+    log_event(
+        logger,
+        "version_filter_completed",
+        eligible_chunk_count=len(filtered),
+        excluded_document_ids=excluded_ids,
+        ambiguous=False,
+    )
     return VersionFilterResult(chunks=filtered, ambiguity=None)
 
 
@@ -71,7 +108,13 @@ def _resolve_default_candidates(
             eligible.add(doc_id)
             continue
         if info.status != "active":
-            continue  # superseded, excluded by default
+            log_event(
+                logger,
+                "version_filter_document_excluded",
+                document_id=doc_id,
+                reason="superseded",
+            )
+            continue
         if info.policy_name is None:
             # Versioned but not tagged with a policy - nothing to
             # disambiguate against, eligible on its own.
@@ -79,7 +122,7 @@ def _resolve_default_candidates(
             continue
         groups.setdefault(info.policy_name, []).append(info)
 
-    for docs in groups.values():
+    for policy_name, docs in groups.items():
         if len(docs) == 1:
             eligible.add(docs[0].document_id)
             continue
@@ -90,12 +133,44 @@ def _resolve_default_candidates(
         # fallback to comparing version strings - "2026.10" vs "2026.9"
         # sorts wrong lexicographically, and this task does not build
         # semantic-version parsing.
-        if all(d.effective_date for d in docs):
+        missing_date_ids = [d.document_id for d in docs if not d.effective_date]
+
+        if not missing_date_ids:
             max_date = max(d.effective_date for d in docs)
             winners = [d for d in docs if d.effective_date == max_date]
             if len(winners) == 1:
-                eligible.add(winners[0].document_id)
+                winner = winners[0]
+                excluded = [d.document_id for d in docs if d.document_id != winner.document_id]
+                log_event(
+                    logger,
+                    "version_filter_group_resolved",
+                    policy_name=policy_name,
+                    winner_document_id=winner.document_id,
+                    winner_version=winner.version,
+                    winner_effective_date=winner.effective_date,
+                    excluded_document_ids=excluded,
+                    resolution_rule="latest_effective_date",
+                )
+                eligible.add(winner.document_id)
                 continue
+
+            log_event(
+                logger,
+                "version_filter_group_ambiguous",
+                policy_name=policy_name,
+                document_ids=[d.document_id for d in docs],
+                reason="tied_effective_date",
+                tied_date=max_date,
+            )
+        else:
+            log_event(
+                logger,
+                "version_filter_group_ambiguous",
+                policy_name=policy_name,
+                document_ids=[d.document_id for d in docs],
+                reason="missing_effective_date",
+                documents_missing_date=missing_date_ids,
+            )
 
         return eligible, AmbiguousPolicyVersionResponse(
             message=(
